@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Элементы решения/">
+    <File Path=".gitignore" />
+  </Folder>
+  <Project Path="sls-planning-1c.client/sls-planning-1c.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="SLS-Planning-1C.Server/SLS-Planning-1C.Server.csproj" />
+</Solution>
