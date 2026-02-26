@@ -1,6 +1,7 @@
 import React from 'react';
 import Settings from './Settings';
 import DashboardWorkspace from './DashboardWorkspace';
+import DesignDocsWorkspace from './DesignDocsWorkspace';
 import { t } from '../config/translations';
 
 const MainWorkspace = ({ lang, settingsContext, user, setUser, closeAccountSettings, activeTab, currentSubMenu, activeSubItem, activeAdminSubItem }) => {
@@ -20,6 +21,10 @@ const MainWorkspace = ({ lang, settingsContext, user, setUser, closeAccountSetti
     if (activeTab === 7) {
         return <DashboardWorkspace lang={lang} />;
     }
+    if (activeTab === 0 && settingsContext === 'none') {
+        return <DesignDocsWorkspace activeSubItem={activeSubItem} />;
+    }
+
 
     return (
         <div className="empty-state">

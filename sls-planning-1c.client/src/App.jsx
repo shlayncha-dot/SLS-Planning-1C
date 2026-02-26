@@ -164,7 +164,7 @@ function App() {
                             />
                         )}
 
-                        <main className={`main-display ${activeTab === 7 && settingsContext !== 'account' ? 'dashboard-mode' : ''}`}>
+                        <main className={`main-display ${activeTab === 7 && settingsContext !== 'account' ? 'dashboard-mode' : ''} ${activeTab === 0 && settingsContext === 'none' ? 'design-docs-mode' : ''}`}>
                             <MainWorkspace
                                 lang={lang}
                                 settingsContext={settingsContext}
