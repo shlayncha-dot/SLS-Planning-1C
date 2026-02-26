@@ -256,6 +256,7 @@
 
 .sidebar {
     width: 260px;
+    flex: 0 0 260px;
     background: white;
     border-radius: 24px;
     padding: 25px;
@@ -616,8 +617,10 @@
 }
 
 .kd-table {
-    width: 100%;
+    width: max-content;
+    min-width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 
 .kd-table th,
@@ -729,6 +732,8 @@
 .filter-popover-actions .cancel-btn {
     flex: 1;
     text-align: center;
+    color: #000;
+    background: #f2f2f2;
 }
 
 .resize-handle {
@@ -759,7 +764,8 @@
 }
 
 .design-docs-settings-page {
-    justify-content: space-between;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .settings-horizontal-group {
@@ -796,6 +802,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: auto;
 }
 
 .verification-matrix {
@@ -833,9 +840,9 @@
 }
 
 .design-docs-actions {
-    margin-top: auto;
     display: flex;
     gap: 12px;
+    flex-shrink: 0;
 }
 
 .cancel-btn {

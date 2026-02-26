@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import SpecificationUploadView from './designDocs/SpecificationUploadView';
 import KDCheckView from './designDocs/KDCheckView';
 import DesignDocsSettingsView from './designDocs/DesignDocsSettingsView';
@@ -136,7 +136,7 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
     const visibleRowIds = sortedRows.map((row) => row.id);
     const allVisibleChecked = visibleRowIds.length > 0 && visibleRowIds.every((id) => checkedRows[id]);
 
-    const toggleSort = (key) => {
+    const toggleSort = useCallback((key) => {
         setSortState((prevState) => {
             if (prevState.key === key) {
                 return {
@@ -147,28 +147,32 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
 
             return { key, direction: 'asc' };
         });
-    };
+    }, []);
 
-    const toggleRow = (rowId) => {
+    const toggleRow = useCallback((rowId) => {
         setCheckedRows((prevState) => ({
             ...prevState,
             [rowId]: !prevState[rowId]
         }));
-    };
+    }, []);
 
-    const toggleAllVisible = () => {
+    const toggleAllVisible = useCallback(() => {
         setCheckedRows((prevState) => {
+            if (allVisibleChecked) {
+                return {};
+            }
+
             const nextState = { ...prevState };
 
             visibleRowIds.forEach((rowId) => {
-                nextState[rowId] = !allVisibleChecked;
+                nextState[rowId] = true;
             });
 
             return nextState;
         });
-    };
+    }, [allVisibleChecked, visibleRowIds]);
 
-    const setFilter = (columnKey, values) => {
+    const setFilter = useCallback((columnKey, values) => {
         setColumnFilters((prevState) => {
             if (values.length === 0) {
                 const nextState = { ...prevState };
@@ -181,14 +185,14 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
                 [columnKey]: values
             };
         });
-    };
+    }, []);
 
-    const setColumnWidth = (columnKey, width) => {
+    const setColumnWidth = useCallback((columnKey, width) => {
         setColumnWidths((prevState) => ({
             ...prevState,
             [columnKey]: width
         }));
-    };
+    }, []);
 
     const applyExcelData = (sheetRows) => {
         const [headerRow, ...bodyRows] = sheetRows;
