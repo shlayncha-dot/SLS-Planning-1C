@@ -1,5 +1,20 @@
 import React from 'react';
 
+const KDTableRow = React.memo(({ row, tableColumns, isChecked, onToggleRow }) => (
+    <tr>
+        <td>
+            <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => onToggleRow(row.id)}
+            />
+        </td>
+        {tableColumns.map((column) => (
+            <td key={`${row.id}-${column.key}`}>{row[column.key]}</td>
+        ))}
+    </tr>
+));
+
 const KDCheckView = ({
     verifyInputRef,
     sortedRows,
@@ -20,7 +35,15 @@ const KDCheckView = ({
     const [openFilterKey, setOpenFilterKey] = React.useState(null);
     const [pendingFilters, setPendingFilters] = React.useState({});
     const resizeStateRef = React.useRef(null);
+    const resizeRafRef = React.useRef(null);
     const filterPopoverRef = React.useRef(null);
+    const [localColumnWidths, setLocalColumnWidths] = React.useState(columnWidths);
+    const localColumnWidthsRef = React.useRef(columnWidths);
+
+    React.useEffect(() => {
+        setLocalColumnWidths(columnWidths);
+        localColumnWidthsRef.current = columnWidths;
+    }, [columnWidths]);
 
     const closeFilterPopover = React.useCallback(() => {
         setOpenFilterKey(null);
@@ -52,7 +75,7 @@ const KDCheckView = ({
         resizeStateRef.current = {
             columnKey,
             startX: event.clientX,
-            startWidth: columnWidths[columnKey] || 160
+            startWidth: localColumnWidths[columnKey] || 160
         };
 
         const onMouseMove = (moveEvent) => {
@@ -61,11 +84,46 @@ const KDCheckView = ({
             }
 
             const nextWidth = Math.max(80, resizeStateRef.current.startWidth + (moveEvent.clientX - resizeStateRef.current.startX));
-            onSetColumnWidth(resizeStateRef.current.columnKey, nextWidth);
+
+            if (resizeRafRef.current) {
+                return;
+            }
+
+            resizeRafRef.current = window.requestAnimationFrame(() => {
+                const resizeState = resizeStateRef.current;
+
+                if (!resizeState) {
+                    resizeRafRef.current = null;
+                    return;
+                }
+
+                setLocalColumnWidths((prevState) => {
+                    const nextState = {
+                        ...prevState,
+                        [resizeState.columnKey]: nextWidth
+                    };
+
+                    localColumnWidthsRef.current = nextState;
+                    return nextState;
+                });
+                resizeRafRef.current = null;
+            });
         };
 
         const onMouseUp = () => {
+            const resizeState = resizeStateRef.current;
+
+            if (resizeState) {
+                onSetColumnWidth(resizeState.columnKey, localColumnWidthsRef.current[resizeState.columnKey] || resizeState.startWidth);
+            }
+
             resizeStateRef.current = null;
+
+            if (resizeRafRef.current) {
+                window.cancelAnimationFrame(resizeRafRef.current);
+                resizeRafRef.current = null;
+            }
+
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
         };
@@ -132,7 +190,7 @@ const KDCheckView = ({
                     <colgroup>
                         <col style={{ width: '44px' }} />
                         {tableColumns.map((column) => (
-                            <col key={column.key} style={{ width: `${columnWidths[column.key] || 160}px` }} />
+                            <col key={column.key} style={{ width: `${localColumnWidths[column.key] || 160}px` }} />
                         ))}
                     </colgroup>
                     <thead>
@@ -141,7 +199,7 @@ const KDCheckView = ({
                                 <input type="checkbox" checked={allVisibleChecked} onChange={onToggleAllVisible} />
                             </th>
                             {tableColumns.map((column) => (
-                                <th key={column.key} className="sortable-column" style={{ width: `${columnWidths[column.key] || 160}px` }}>
+                                <th key={column.key} className="sortable-column" style={{ width: `${localColumnWidths[column.key] || 160}px` }}>
                                     <div className="column-head-content" onClick={() => onToggleSort(column.key)}>
                                         {column.label}
                                         <span className="sort-indicator">
@@ -194,18 +252,13 @@ const KDCheckView = ({
                     </thead>
                     <tbody>
                         {sortedRows.map((row) => (
-                            <tr key={row.id}>
-                                <td>
-                                    <input
-                                        type="checkbox"
-                                        checked={Boolean(checkedRows[row.id])}
-                                        onChange={() => onToggleRow(row.id)}
-                                    />
-                                </td>
-                                {tableColumns.map((column) => (
-                                    <td key={`${row.id}-${column.key}`}>{row[column.key]}</td>
-                                ))}
-                            </tr>
+                            <KDTableRow
+                                key={row.id}
+                                row={row}
+                                tableColumns={tableColumns}
+                                isChecked={Boolean(checkedRows[row.id])}
+                                onToggleRow={onToggleRow}
+                            />
                         ))}
                     </tbody>
                 </table>
