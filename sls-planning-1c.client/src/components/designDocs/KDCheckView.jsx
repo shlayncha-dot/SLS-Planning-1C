@@ -1,6 +1,6 @@
 import React from 'react';
 
-const MIN_COLUMN_WIDTH = 80;
+const MIN_COLUMN_WIDTH = 48;
 
 const KDTableRow = React.memo(({
     row,
@@ -109,7 +109,13 @@ const KDCheckView = ({
         }
 
         const onDocumentPointerDown = (event) => {
-            if (!filterPopoverRef.current?.contains(event.target)) {
+            const targetElement = event.target;
+
+            if (targetElement instanceof Element && targetElement.closest('.filter-trigger')) {
+                return;
+            }
+
+            if (!filterPopoverRef.current?.contains(targetElement)) {
                 closeFilterPopover();
             }
         };
@@ -253,7 +259,7 @@ const KDCheckView = ({
             </div>
 
             <div className="kd-table-wrap">
-                <table className="kd-table" style={{ minWidth: tablePixelWidth }}>
+                <table className="kd-table" style={{ width: tablePixelWidth, minWidth: '100%' }}>
                     <colgroup>
                         <col style={{ width: '44px' }} />
                         {tableColumns.map((column) => (
@@ -276,7 +282,12 @@ const KDCheckView = ({
                                             type="button"
                                             className={`filter-trigger ${isColumnFiltered(column.key) ? 'active' : ''}`}
                                             aria-label={`Фильтр столбца ${column.label}`}
+                                            onMouseDown={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                            }}
                                             onClick={(event) => {
+                                                event.preventDefault();
                                                 event.stopPropagation();
                                                 handleFilterOpen(column.key);
                                             }}
