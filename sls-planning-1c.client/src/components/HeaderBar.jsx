@@ -74,9 +74,9 @@ const HeaderBar = ({
                     <>
                         <div className="auth-wrapper">
                             <div className="auth-profile" onClick={() => setShowUserMenu(!showUserMenu)}>
-                                <div className="avatar"><img src={user.avatar} alt="avatar" /></div>
+                                <div className="avatar"><img src={user.photoUrl || 'https://i.pravatar.cc/100?img=32'} alt="avatar" /></div>
                                 <div className="user-info">
-                                    <div className="user-name">{user.firstName} {user.lastName}</div>
+                                    <div className="user-name">{user.firstName || user.login} {user.lastName}</div>
                                     <div className="user-status">{t(lang, 'header.premiumAccount')}</div>
                                 </div>
                             </div>

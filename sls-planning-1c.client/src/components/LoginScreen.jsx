@@ -5,11 +5,22 @@ const LoginScreen = ({ lang, savedLogin, onLogin }) => {
     const [login, setLogin] = useState(savedLogin || '');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(Boolean(savedLogin));
+    const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = (event) => {
+    const handleSubmit = async (event) => {
         event.preventDefault();
-        onLogin({ login, password, rememberMe });
-        setPassword('');
+        setError('');
+        setIsSubmitting(true);
+
+        try {
+            await onLogin({ login, password, rememberMe });
+            setPassword('');
+        } catch (loginError) {
+            setError(loginError.message || 'Ошибка авторизации.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -49,7 +60,8 @@ const LoginScreen = ({ lang, savedLogin, onLogin }) => {
                     {t(lang, 'auth.rememberMe')}
                 </label>
 
-                <button className="save-btn" type="submit">{t(lang, 'auth.submit')}</button>
+                {error && <p className="form-error">{error}</p>}
+                <button className="save-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? '...' : t(lang, 'auth.submit')}</button>
             </form>
         </div>
     );

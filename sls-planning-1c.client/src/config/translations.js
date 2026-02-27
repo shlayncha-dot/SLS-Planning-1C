@@ -25,6 +25,12 @@ const translations = {
     'settings.phone': 'Телефон',
     'settings.email': 'Email',
     'settings.save': 'Сохранить',
+    'settings.cancel': 'Отмена',
+    'settings.avatarLink': 'Ссылка на фото',
+    'settings.changePassword': 'Смена пароля',
+    'settings.oldPassword': 'Старый пароль',
+    'settings.newPassword': 'Новый пароль',
+    'settings.confirmPassword': 'Повтор нового пароля',
 
     'dashboard.metalworking': 'Металлообработка',
     'dashboard.assembly': 'Сборка',
@@ -41,6 +47,7 @@ const translations = {
     'common.superMarket': 'SuperMarket',
     'common.inDevelopment': 'Контент раздела находится в разработке',
 
+    'admin.createUser': 'Создать пользователя',
     'admin.userSettings': 'Настройки пользователей',
 
     'menu.designDocs': 'Конструкторская документация',
@@ -103,6 +110,12 @@ const translations = {
     'settings.phone': 'Phone',
     'settings.email': 'Email',
     'settings.save': 'Save',
+    'settings.cancel': 'Cancel',
+    'settings.avatarLink': 'Photo link',
+    'settings.changePassword': 'Change password',
+    'settings.oldPassword': 'Old password',
+    'settings.newPassword': 'New password',
+    'settings.confirmPassword': 'Confirm new password',
 
     'dashboard.metalworking': 'Metalworking',
     'dashboard.assembly': 'Assembly',
@@ -119,6 +132,7 @@ const translations = {
     'common.superMarket': 'SuperMarket',
     'common.inDevelopment': 'Section content is under development',
 
+    'admin.createUser': 'Create user',
     'admin.userSettings': 'User settings',
 
     'menu.designDocs': 'Design documentation',
@@ -181,6 +195,12 @@ const translations = {
     'settings.phone': 'ტელეფონი',
     'settings.email': 'ელ-ფოსტა',
     'settings.save': 'შენახვა',
+    'settings.cancel': 'გაუქმება',
+    'settings.avatarLink': 'ფოტოს ბმული',
+    'settings.changePassword': 'პაროლის შეცვლა',
+    'settings.oldPassword': 'ძველი პაროლი',
+    'settings.newPassword': 'ახალი პაროლი',
+    'settings.confirmPassword': 'ახალი პაროლის გამეორება',
 
     'dashboard.metalworking': 'ლითონის დამუშავება',
     'dashboard.assembly': 'აწყობა',
@@ -197,6 +217,7 @@ const translations = {
     'common.superMarket': 'SuperMarket',
     'common.inDevelopment': 'განყოფილების შინაარსი დამუშავების პროცესშია',
 
+    'admin.createUser': 'მომხმარებლის შექმნა',
     'admin.userSettings': 'მომხმარებლების პარამეტრები',
 
     'menu.designDocs': 'საკონსტრუქტორო დოკუმენტაცია',
