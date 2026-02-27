@@ -1,0 +1,32 @@
+name: Mirror to GitLab
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push mirror to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -e
+
+          # ТВОИ ДАННЫЕ:
+          GITLAB_HOST="git.omnic.solutions"
+          GITLAB_USER="ashevchenko"
+          GITLAB_PROJECT="sls.production/board"
+
+          git remote remove gitlab 2>/dev/null || true
+          git remote add gitlab "https://${GITLAB_USER}:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT}.git"
+
+          # Зеркалим ветки + теги
+          git push --mirror gitlab
