@@ -66,6 +66,21 @@ const createSpecificationSettings = () => ({
     primer: ''
 });
 
+const normalizeSpecificationSettings = (specification) => {
+    const defaults = createSpecificationSettings();
+
+    if (!specification || typeof specification !== 'object') {
+        return defaults;
+    }
+
+    return {
+        columns: String(specification.columns ?? ''),
+        type: String(specification.type ?? ''),
+        coverage: String(specification.coverage ?? ''),
+        primer: String(specification.primer ?? '')
+    };
+};
+
 const normalizeVerificationSeverity = (severity) => {
     if (typeof severity === 'string') {
         const normalized = severity.toLowerCase();
@@ -131,13 +146,10 @@ const ensureSheetJs = () => {
 const DesignDocsWorkspace = ({ activeSubItem }) => {
     const uploadInputRef = useRef(null);
     const verifyInputRef = useRef(null);
-    const pdfFolderInputRef = useRef(null);
 
     const [productName, setProductName] = useState('');
     const [specName, setSpecName] = useState('');
     const [uploadFile, setUploadFile] = useState('');
-    const [pdfPath, setPdfPath] = useState('C:/SLS/KD/PDF_DXF');
-    const [savedPdfPath, setSavedPdfPath] = useState('C:/SLS/KD/PDF_DXF');
     const [verificationParams, setVerificationParams] = useState(createVerificationParams);
     const [savedVerificationParams, setSavedVerificationParams] = useState(createVerificationParams);
     const [specificationSettings, setSpecificationSettings] = useState(createSpecificationSettings);
@@ -169,6 +181,7 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
 
                 const data = await response.json();
                 const nextParams = normalizeVerificationParams(data.typeRules);
+                const nextSpecificationSettings = normalizeSpecificationSettings(data.specificationSettings);
 
                 if (!isMounted) {
                     return;
@@ -176,6 +189,8 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
 
                 setVerificationParams(nextParams);
                 setSavedVerificationParams(nextParams.map((row) => ({ ...row })));
+                setSpecificationSettings(nextSpecificationSettings);
+                setSavedSpecificationSettings({ ...nextSpecificationSettings });
             } catch (error) {
                 alert(error instanceof Error ? error.message : 'Ошибка загрузки параметров верификации.');
             }
@@ -373,35 +388,6 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
         }
     };
 
-    const handleBrowsePdfFolder = async () => {
-        pdfFolderInputRef.current?.click();
-    };
-
-    const handlePdfFolderFallback = (event) => {
-        const file = event.target.files?.[0];
-        const relativePath = file?.webkitRelativePath || '';
-        const selectedFolderName = relativePath.split('/')[0] || '';
-
-        const absoluteFilePath = typeof file?.path === 'string' ? file.path.replace(/\\/g, '/') : '';
-        const relativeFilePath = relativePath ? `/${relativePath}` : '';
-        const fullPathFromFile = absoluteFilePath && relativeFilePath && absoluteFilePath.endsWith(relativeFilePath)
-            ? absoluteFilePath.slice(0, absoluteFilePath.length - relativeFilePath.length)
-            : '';
-
-        const inputValuePath = event.target.value
-            ? event.target.value.replace(/\\/g, '/').replace(/\/[^/]*$/, '')
-            : '';
-        const fallbackPath = inputValuePath && selectedFolderName ? `${inputValuePath}/${selectedFolderName}` : '';
-        const nextPath = fullPathFromFile || fallbackPath || selectedFolderName;
-
-        if (nextPath) {
-            setPdfPath(nextPath);
-        }
-
-        event.target.value = '';
-    };
-
-
     const runVerification = useCallback(async () => {
         setVerificationInProgress(true);
 
@@ -593,7 +579,7 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
         }));
     };
 
-    const handleSavePdfPath = async () => {
+    const handleSaveSettings = async () => {
         try {
             const response = await fetch(verificationApi.settings, {
                 method: 'PUT',
@@ -605,7 +591,8 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
                         type: rule.type,
                         description: rule.description,
                         condition: rule.condition
-                    }))
+                    })),
+                    specificationSettings
                 })
             });
 
@@ -615,19 +602,19 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
 
             const savedSettings = await response.json();
             const normalizedSavedParams = normalizeVerificationParams(savedSettings.typeRules);
+            const normalizedSavedSpecificationSettings = normalizeSpecificationSettings(savedSettings.specificationSettings);
 
-            setSavedPdfPath(pdfPath);
             setVerificationParams(normalizedSavedParams);
             setSavedVerificationParams(normalizedSavedParams.map((row) => ({ ...row })));
-            setSavedSpecificationSettings({ ...specificationSettings });
+            setSpecificationSettings(normalizedSavedSpecificationSettings);
+            setSavedSpecificationSettings({ ...normalizedSavedSpecificationSettings });
             alert('Параметры верификации сохранены.');
         } catch (error) {
             alert(error instanceof Error ? error.message : 'Ошибка сохранения параметров верификации.');
         }
     };
 
-    const handleCancelPdfPath = () => {
-        setPdfPath(savedPdfPath);
+    const handleCancelSettings = () => {
         setVerificationParams(savedVerificationParams.map((row) => ({ ...row })));
         setSpecificationSettings({ ...savedSpecificationSettings });
     };
@@ -679,17 +666,12 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
 
             <div className={`design-docs-subview ${activeSubItem !== 0 && activeSubItem !== 1 ? 'active' : ''}`}>
                 <DesignDocsSettingsView
-                    pdfPath={pdfPath}
-                    onPdfPathChange={setPdfPath}
-                    onBrowsePdfFolder={handleBrowsePdfFolder}
-                    pdfFolderInputRef={pdfFolderInputRef}
-                    onPdfFolderFallbackChange={handlePdfFolderFallback}
                     verificationParams={verificationParams}
                     onVerificationParamChange={handleVerificationParamChange}
                     specificationSettings={specificationSettings}
                     onSpecificationSettingChange={handleSpecificationSettingChange}
-                    onSave={handleSavePdfPath}
-                    onCancel={handleCancelPdfPath}
+                    onSave={handleSaveSettings}
+                    onCancel={handleCancelSettings}
                 />
             </div>
         </>

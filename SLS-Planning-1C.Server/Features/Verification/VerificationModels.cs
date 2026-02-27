@@ -7,9 +7,18 @@ public sealed class VerificationTypeRuleDto
     public string Condition { get; init; } = string.Empty;
 }
 
+public sealed class SpecificationSettingsDto
+{
+    public string Columns { get; init; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
+    public string Coverage { get; init; } = string.Empty;
+    public string Primer { get; init; } = string.Empty;
+}
+
 public sealed class VerificationSettingsDto
 {
     public required IReadOnlyList<VerificationTypeRuleDto> TypeRules { get; init; }
+    public required SpecificationSettingsDto SpecificationSettings { get; init; }
 }
 
 public sealed class VerifyRowDto

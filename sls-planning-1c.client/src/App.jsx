@@ -11,8 +11,53 @@ import { createUser, getUsers, loginUser, updateUserAccess } from './services/us
 
 const STORAGE_KEY = 'sls-auth-data';
 
+const getStoredAuthData = () => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+
+        if (!parsed || typeof parsed !== 'object') {
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
+        }
+
+        const login = String(parsed.login ?? '').trim();
+
+        if (!login) {
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
+        }
+
+        return {
+            login,
+            user: parsed.user && typeof parsed.user === 'object'
+                ? {
+                    login: String(parsed.user.login ?? login),
+                    role: String(parsed.user.role ?? 'Oper'),
+                    firstName: String(parsed.user.firstName ?? ''),
+                    lastName: String(parsed.user.lastName ?? ''),
+                    phone: String(parsed.user.phone ?? ''),
+                    email: String(parsed.user.email ?? ''),
+                    photoUrl: String(parsed.user.photoUrl ?? ''),
+                    isAdmin: Boolean(parsed.user.isAdmin)
+                }
+                : null
+        };
+    } catch {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+    }
+};
+
 function App() {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [storedAuthData] = useState(() => getStoredAuthData());
+
+    const [isLoggedIn, setIsLoggedIn] = useState(Boolean(storedAuthData?.user));
     const [activeTab, setActiveTab] = useState(0);
     const [activeSubItem, setActiveSubItem] = useState(0);
     const [lang, setLang] = useState('RU');
@@ -20,23 +65,9 @@ function App() {
     const [settingsContext, setSettingsContext] = useState('none');
     const [activeAdminSubItem, setActiveAdminSubItem] = useState(0);
     const [usersList, setUsersList] = useState([]);
-    const [savedLogin, setSavedLogin] = useState(() => {
-        const data = localStorage.getItem(STORAGE_KEY);
+    const [savedLogin, setSavedLogin] = useState(storedAuthData?.login || '');
 
-        if (!data) {
-            return '';
-        }
-
-        try {
-            const parsedData = JSON.parse(data);
-            return parsedData.login || '';
-        } catch {
-            localStorage.removeItem(STORAGE_KEY);
-            return '';
-        }
-    });
-
-    const [user, setUser] = useState({
+    const [user, setUser] = useState(storedAuthData?.user || {
         login: '',
         role: 'Oper',
         firstName: '',
@@ -104,6 +135,8 @@ function App() {
         setShowUserMenu(false);
         setSettingsContext('none');
         setUsersList([]);
+        localStorage.removeItem(STORAGE_KEY);
+        setSavedLogin('');
     };
 
     const login = async ({ login: loginName, password, rememberMe }) => {
@@ -113,7 +146,10 @@ function App() {
         setSettingsContext('none');
 
         if (rememberMe) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ login: loginName }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                login: loginName,
+                user: authenticatedUser
+            }));
             setSavedLogin(loginName);
             return;
         }

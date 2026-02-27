@@ -100,7 +100,20 @@ public sealed class VerificationSettingsStore : IVerificationSettingsStore
 
         return new VerificationSettingsDto
         {
-            TypeRules = rules
+            TypeRules = rules,
+            SpecificationSettings = NormalizeSpecificationSettings(settings.SpecificationSettings)
+        };
+    }
+
+
+    private static SpecificationSettingsDto NormalizeSpecificationSettings(SpecificationSettingsDto? specificationSettings)
+    {
+        return new SpecificationSettingsDto
+        {
+            Columns = specificationSettings?.Columns?.Trim() ?? string.Empty,
+            Type = specificationSettings?.Type?.Trim() ?? string.Empty,
+            Coverage = specificationSettings?.Coverage?.Trim() ?? string.Empty,
+            Primer = specificationSettings?.Primer?.Trim() ?? string.Empty
         };
     }
 
@@ -115,7 +128,8 @@ public sealed class VerificationSettingsStore : IVerificationSettingsStore
                     Description = string.Empty,
                     Condition = string.Empty
                 })
-                .ToList()
+                .ToList(),
+            SpecificationSettings = new SpecificationSettingsDto()
         };
     }
 
@@ -130,7 +144,8 @@ public sealed class VerificationSettingsStore : IVerificationSettingsStore
                     Description = rule.Description,
                     Condition = rule.Condition
                 })
-                .ToList()
+                .ToList(),
+            SpecificationSettings = NormalizeSpecificationSettings(source.SpecificationSettings)
         };
     }
 }
