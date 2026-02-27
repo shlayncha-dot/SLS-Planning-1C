@@ -1,4 +1,5 @@
 using SLS_Planning_1C.Server.Features.FileIndexing;
+using SLS_Planning_1C.Server.Features.Naming;
 using SLS_Planning_1C.Server.Features.Verification;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IFileIndexStore, FileIndexStore>();
 builder.Services.AddScoped<IVerificationService, VerificationService>();
+builder.Services.AddHttpClient<INamingService, NamingService>();
+builder.Services.Configure<NamingApiOptions>(builder.Configuration.GetSection("ExternalApis:Naming"));
 
 var app = builder.Build();
 

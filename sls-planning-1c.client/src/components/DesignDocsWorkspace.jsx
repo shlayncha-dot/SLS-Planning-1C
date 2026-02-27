@@ -2,6 +2,8 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import SpecificationUploadView from './designDocs/SpecificationUploadView';
 import KDCheckView from './designDocs/KDCheckView';
 import DesignDocsSettingsView from './designDocs/DesignDocsSettingsView';
+import { verificationApi } from '../config/apiConfig';
+import { extractRowsForNamingCheck } from '../services/namingCheckService';
 
 const sampleSpecs = [
     { id: 1, code: 'A-1001', name: 'Корпус', material: 'Сталь', qty: 2 },
@@ -96,6 +98,9 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
     const [columnWidths, setColumnWidths] = useState(defaultColumnWidths);
     const [searchValue, setSearchValue] = useState('');
     const [verificationInProgress, setVerificationInProgress] = useState(false);
+    const [namingCheckInProgress, setNamingCheckInProgress] = useState(false);
+    const [namingIssuesByRowId, setNamingIssuesByRowId] = useState({});
+    const [namingReport, setNamingReport] = useState(null);
 
     const filteredRows = useMemo(() => {
         const normalizedSearch = searchValue.trim().toLowerCase();
@@ -158,14 +163,21 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
                 })
                 .map((row) => String(row[column.key] ?? ''));
 
-            options[column.key] = [...new Set(availableValues)];
+            options[column.key] = Array.from(new Set(availableValues));
         });
 
         return options;
     }, [columnFilters, searchValue, tableColumns, tableRows]);
 
     const visibleRowIds = useMemo(() => sortedRows.map((row) => row.id), [sortedRows]);
-    const allVisibleChecked = visibleRowIds.length > 0 && visibleRowIds.every((id) => checkedRows[id]);
+
+    const allVisibleChecked = useMemo(() => {
+        if (visibleRowIds.length === 0) {
+            return false;
+        }
+
+        return visibleRowIds.every((id) => checkedRows[id]);
+    }, [checkedRows, visibleRowIds]);
 
     const toggleRow = useCallback((rowId) => {
         setCheckedRows((prevState) => ({
@@ -242,6 +254,8 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
         setColumnFilters({});
         setColumnWidths(nextWidths);
         setSearchValue('');
+        setNamingIssuesByRowId({});
+        setNamingReport(null);
     }, []);
 
     const handleExcelUpload = async (event) => {
@@ -318,7 +332,7 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
                 }))
             };
 
-            const response = await fetch('/api/verification/kd', {
+            const response = await fetch(verificationApi.kd, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -349,6 +363,80 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
             setVerificationInProgress(false);
         }
     }, [sortedRows, tableColumns, verificationParams]);
+
+    const runNamingCheck = useCallback(async () => {
+        const { rows: namingRows, nameColumnKey, errorMessage } = extractRowsForNamingCheck(sortedRows, tableColumns);
+
+        if (errorMessage) {
+            alert(errorMessage);
+            return;
+        }
+
+        if (!nameColumnKey) {
+            alert('Не найден столбец «Наименование».');
+            return;
+        }
+
+        if (!namingRows.length) {
+            setNamingIssuesByRowId({});
+            setNamingReport({
+                isSuccess: true,
+                message: 'Все названия соответствует базе 1С'
+            });
+            alert('Для проверки не найдено деталей с типами: Компл, Крепеж, Крепеж_св.');
+            return;
+        }
+
+        setNamingCheckInProgress(true);
+
+        try {
+            const response = await fetch(verificationApi.naming, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ items: namingRows })
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка запроса к сервису Нейминг.');
+            }
+
+            const result = await response.json();
+            const notFoundRows = result.results.filter((item) => !item.isFound);
+            const notFoundMap = notFoundRows.reduce((acc, item) => {
+                acc[item.rowId] = true;
+                return acc;
+            }, {});
+
+            setNamingIssuesByRowId(notFoundMap);
+
+            if (notFoundRows.length === 0) {
+                const successMessage = 'Все названия соответствует базе 1С';
+                setNamingReport({ isSuccess: true, message: successMessage });
+                alert(successMessage);
+                return;
+            }
+
+            const reportLines = notFoundRows.map((item) => `Строка ${item.rowId}: ${item.name} — ${item.status}`);
+            const errorMessage = ['Найдены отсутствующие наименования в базе 1С:', ...reportLines].join('\n');
+
+            setNamingReport({
+                isSuccess: false,
+                message: `Не найдено в базе 1С: ${notFoundRows.length}`
+            });
+            alert(errorMessage);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'Ошибка выполнения проверки Нейминг.');
+        } finally {
+            setNamingCheckInProgress(false);
+        }
+    }, [sortedRows, tableColumns]);
+
+    const namingTargetColumnKey = useMemo(() => {
+        const nameColumn = tableColumns.find((column) => column.label.toLowerCase().includes('наимен'));
+        return nameColumn?.key || null;
+    }, [tableColumns]);
 
     const handleVerificationParamChange = (index, field, value) => {
         setVerificationParams((prevState) => prevState.map((row, rowIndex) => (
@@ -410,6 +498,11 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
                     onSearchChange={setSearchValue}
                     onRunVerification={runVerification}
                     verificationInProgress={verificationInProgress}
+                    onRunNamingCheck={runNamingCheck}
+                    namingCheckInProgress={namingCheckInProgress}
+                    namingIssuesByRowId={namingIssuesByRowId}
+                    namingTargetColumnKey={namingTargetColumnKey}
+                    namingReport={namingReport}
                 />
             </div>
 
