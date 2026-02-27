@@ -339,7 +339,10 @@ const DesignDocsWorkspace = ({ activeSubItem }) => {
             const details = blocks
                 .flatMap((block) => block.issues.map((issue) => `${block.blockName} | ${issue.detailName} | ${issue.severity} | ${issue.paths.join(', ') || 'путь не найден'}`));
 
-            alert([summary, details.length ? '', 'Детали:', ...details].join('\n'));
+            alert([
+                summary,
+                ...(details.length ? ['', 'Детали:', ...details] : [])
+            ].join('\n'));
         } catch (error) {
             alert(error instanceof Error ? error.message : 'Ошибка выполнения верификации.');
         } finally {
