@@ -17,7 +17,14 @@ public sealed class NamingController : ControllerBase
     [HttpPost("naming")]
     public async Task<ActionResult<NamingCheckResponse>> CheckNaming([FromBody] NamingCheckRequest request, CancellationToken cancellationToken)
     {
-        var response = await _namingService.CheckAsync(request, cancellationToken);
-        return Ok(response);
+        try
+        {
+            var response = await _namingService.CheckAsync(request, cancellationToken);
+            return Ok(response);
+        }
+        catch (NamingServiceException ex)
+        {
+            return Problem(statusCode: (int)ex.StatusCode, title: "Ошибка проверки наименований", detail: ex.Message);
+        }
     }
 }

@@ -13,6 +13,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IFileIndexStore, FileIndexStore>();
 builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddHttpClient<INamingService, NamingService>();
+builder.Services.AddSingleton<INamingCredentialsStore, NamingRuntimeCredentialsStore>();
 builder.Services.Configure<NamingApiOptions>(builder.Configuration.GetSection("ExternalApis:Naming"));
 
 var app = builder.Build();

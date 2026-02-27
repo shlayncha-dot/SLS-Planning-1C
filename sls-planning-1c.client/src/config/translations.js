@@ -10,6 +10,13 @@ const translations = {
     'auth.password': 'Пароль',
     'auth.rememberMe': 'Запомнить меня',
     'auth.submit': 'Войти',
+    'namingAuth.title': 'Авторизация 1С',
+    'namingAuth.description': 'Введите логин и пароль 1С для проверки наименований.',
+    'namingAuth.submit': 'Сохранить доступ',
+    'namingAuth.saving': 'Сохраняем...',
+    'namingAuth.loadError': 'Не удалось получить статус авторизации 1С.',
+    'namingAuth.saveError': 'Не удалось сохранить логин/пароль 1С.',
+
 
     'settings.profileTitle': 'Настройки профиля',
     'settings.changeAvatar': 'Сменить аватар',
@@ -81,6 +88,13 @@ const translations = {
     'auth.password': 'Password',
     'auth.rememberMe': 'Remember me',
     'auth.submit': 'Sign in',
+    'namingAuth.title': '1C authorization',
+    'namingAuth.description': 'Enter 1C login and password for naming checks.',
+    'namingAuth.submit': 'Save access',
+    'namingAuth.saving': 'Saving...',
+    'namingAuth.loadError': 'Failed to load 1C authorization status.',
+    'namingAuth.saveError': 'Failed to save 1C login/password.',
+
 
     'settings.profileTitle': 'Profile settings',
     'settings.changeAvatar': 'Change avatar',
@@ -152,6 +166,13 @@ const translations = {
     'auth.password': 'პაროლი',
     'auth.rememberMe': 'დამიმახსოვრე',
     'auth.submit': 'შესვლა',
+    'namingAuth.title': '1C ავტორიზაცია',
+    'namingAuth.description': 'შეიყვანეთ 1C ლოგინი და პაროლი სახელების შემოწმებისთვის.',
+    'namingAuth.submit': 'წვდომის შენახვა',
+    'namingAuth.saving': 'ინახება...',
+    'namingAuth.loadError': 'ვერ მივიღეთ 1C ავტორიზაციის სტატუსი.',
+    'namingAuth.saveError': 'ვერ შევინახეთ 1C ლოგინი/პაროლი.',
+
 
     'settings.profileTitle': 'პროფილის პარამეტრები',
     'settings.changeAvatar': 'ავატარის შეცვლა',

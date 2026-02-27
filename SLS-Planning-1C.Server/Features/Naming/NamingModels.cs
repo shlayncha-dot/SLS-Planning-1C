@@ -27,4 +27,18 @@ public sealed class NamingCheckResponse
 public sealed class NamingApiOptions
 {
     public string CheckUrl { get; init; } = string.Empty;
+    public string Username { get; init; } = string.Empty;
+    public string Password { get; init; } = string.Empty;
+}
+
+
+public sealed class NamingAuthCredentialsRequest
+{
+    public string Username { get; init; } = string.Empty;
+    public string Password { get; init; } = string.Empty;
+}
+
+public sealed class NamingAuthStatusResponse
+{
+    public bool IsConfigured { get; init; }
 }

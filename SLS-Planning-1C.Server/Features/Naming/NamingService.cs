@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using System.Net;
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
 
 namespace SLS_Planning_1C.Server.Features.Naming;
@@ -11,30 +13,47 @@ public interface INamingService
 
 public sealed class NamingService : INamingService
 {
+    // Временный hardcode тестовых учетных данных 1С по запросу.
+    private const string HardcodedUsername = "Andrew Chevchen";
+    private const string HardcodedPassword = "Ukrplat0312";
 
     private readonly HttpClient _httpClient;
     private readonly NamingApiOptions _options;
+    private readonly INamingCredentialsStore _credentialsStore;
 
-    public NamingService(HttpClient httpClient, IOptions<NamingApiOptions> options)
+    public NamingService(HttpClient httpClient, IOptions<NamingApiOptions> options, INamingCredentialsStore credentialsStore)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _credentialsStore = credentialsStore;
     }
 
     public async Task<NamingCheckResponse> CheckAsync(NamingCheckRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.CheckUrl))
         {
-            throw new InvalidOperationException("Не настроен URL API для проверки нейминга.");
+            throw new NamingServiceException("Не настроен URL API для проверки нейминга.", HttpStatusCode.ServiceUnavailable);
         }
 
         var payload = request.Items.Select(item => new { name = item.Name }).ToList();
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-        using var response = await _httpClient.PostAsync(_options.CheckUrl, content, cancellationToken);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
+        {
+            Content = content
+        };
+
+        AddBasicAuthorizationHeaderIfConfigured(httpRequest);
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException($"Сервис Нейминг вернул ошибку {(int)response.StatusCode}.");
+            var isUnauthorized = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
+            var message = isUnauthorized
+                ? "Внешний сервис нейминга отклонил запрос (401/403). Проверьте логин и пароль 1С в настройках сервера."
+                : $"Сервис Нейминг вернул ошибку {(int)response.StatusCode}.";
+
+            throw new NamingServiceException(message, HttpStatusCode.BadGateway);
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -61,6 +80,41 @@ public sealed class NamingService : INamingService
         {
             Results = results
         };
+    }
+
+    private void AddBasicAuthorizationHeaderIfConfigured(HttpRequestMessage request)
+    {
+        var credentials = ResolveCredentials();
+        if (credentials is null)
+        {
+            return;
+        }
+
+        var rawCredentials = $"{credentials.Value.Username}:{credentials.Value.Password}";
+        var encodedCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(rawCredentials));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", encodedCredentials);
+    }
+
+    private (string Username, string Password)? ResolveCredentials()
+    {
+        if (!string.IsNullOrWhiteSpace(HardcodedUsername) && !string.IsNullOrWhiteSpace(HardcodedPassword))
+        {
+            return (HardcodedUsername, HardcodedPassword);
+        }
+
+        if (_credentialsStore.TryGet(out var runtimeCredentials)
+            && !string.IsNullOrWhiteSpace(runtimeCredentials.Username)
+            && !string.IsNullOrWhiteSpace(runtimeCredentials.Password))
+        {
+            return (runtimeCredentials.Username, runtimeCredentials.Password);
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.Username) || string.IsNullOrWhiteSpace(_options.Password))
+        {
+            return null;
+        }
+
+        return (_options.Username, _options.Password);
     }
 
     private static List<string> ExtractStatuses(JsonElement root, int expectedCount)
@@ -104,4 +158,15 @@ public sealed class NamingService : INamingService
 
         return "Not found";
     }
+}
+
+public sealed class NamingServiceException : Exception
+{
+    public NamingServiceException(string message, HttpStatusCode statusCode)
+        : base(message)
+    {
+        StatusCode = statusCode;
+    }
+
+    public HttpStatusCode StatusCode { get; }
 }
