@@ -4,6 +4,8 @@ const MIN_COLUMN_WIDTH = 48;
 const VIRTUAL_ROW_HEIGHT = 40;
 const VIRTUAL_OVERSCAN = 8;
 
+const formatMissingForCopy = (items) => (items.length ? items.map((item) => `- ${item}`).join('\n') : '—');
+
 const KDTableRow = React.memo(({
     row,
     tableColumns,
@@ -341,14 +343,19 @@ const KDCheckView = ({
             lines.push('Все файлы DXF и PDF найдены');
         } else {
             lines.push('Не найдены следующие файлы:');
-            lines.push(`DXF: ${(verificationReport.missingByBlock.DXF || []).join(', ') || '—'}`);
-            lines.push(`PDF: ${(verificationReport.missingByBlock.PDF || []).join(', ') || '—'}`);
+            lines.push('DXF:');
+            lines.push(formatMissingForCopy(verificationReport.missingByBlock.DXF || []));
+            lines.push('');
+            lines.push('PDF:');
+            lines.push(formatMissingForCopy(verificationReport.missingByBlock.PDF || []));
 
             if (verificationReport.duplicates.length) {
                 lines.push('');
                 lines.push('Файлы которые повторяются:');
                 verificationReport.duplicates.forEach((duplicate) => {
-                    lines.push(`${duplicate.blockName}: ${duplicate.detailName} — ${(duplicate.paths || []).join('; ') || 'путь не найден'}`);
+                    lines.push(`Имя детали: ${duplicate.detailName}`);
+                    lines.push((duplicate.paths || []).length ? duplicate.paths.join('\n') : 'путь не найден');
+                    lines.push('');
                 });
             }
         }
@@ -414,12 +421,24 @@ const KDCheckView = ({
                                             <tr>
                                                 <td>
                                                     {(verificationReport.missingByBlock.DXF || []).length
-                                                        ? verificationReport.missingByBlock.DXF.join(', ')
+                                                        ? (
+                                                            <ul className="verification-missing-list">
+                                                                {verificationReport.missingByBlock.DXF.map((item) => (
+                                                                    <li key={`missing-dxf-${item}`}>{item}</li>
+                                                                ))}
+                                                            </ul>
+                                                        )
                                                         : '—'}
                                                 </td>
                                                 <td>
                                                     {(verificationReport.missingByBlock.PDF || []).length
-                                                        ? verificationReport.missingByBlock.PDF.join(', ')
+                                                        ? (
+                                                            <ul className="verification-missing-list">
+                                                                {verificationReport.missingByBlock.PDF.map((item) => (
+                                                                    <li key={`missing-pdf-${item}`}>{item}</li>
+                                                                ))}
+                                                            </ul>
+                                                        )
                                                         : '—'}
                                                 </td>
                                             </tr>
@@ -428,11 +447,21 @@ const KDCheckView = ({
 
                                     {verificationReport.duplicates.length > 0 && (
                                         <>
-                                            <p>Файлы которые повторяются:</p>
+                                            <p><strong>Файлы которые повторяются:</strong></p>
                                             <ul className="verification-duplicates-list">
                                                 {verificationReport.duplicates.map((duplicate) => (
                                                     <li key={`${duplicate.blockName}-${duplicate.detailName}`}>
-                                                        {duplicate.detailName} — {(duplicate.paths || []).join('; ') || 'путь не найден'}
+                                                        <p><strong>Имя детали:</strong> {duplicate.detailName}</p>
+                                                        <p>
+                                                            {(duplicate.paths || []).length
+                                                                ? duplicate.paths.map((path, index) => (
+                                                                    <React.Fragment key={`${duplicate.blockName}-${duplicate.detailName}-${path}`}>
+                                                                        {index > 0 && <br />}
+                                                                        {path}
+                                                                    </React.Fragment>
+                                                                ))
+                                                                : 'путь не найден'}
+                                                        </p>
                                                     </li>
                                                 ))}
                                             </ul>

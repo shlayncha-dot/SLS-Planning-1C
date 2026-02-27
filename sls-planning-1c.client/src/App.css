@@ -1187,7 +1187,21 @@
     padding: 10px;
 }
 
-.verification-duplicates-list {
+.verification-missing-list {
     margin: 0;
     padding-left: 18px;
+}
+
+.verification-duplicates-list {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.verification-duplicates-list li + li {
+    margin-top: 12px;
+}
+
+.verification-duplicates-list p {
+    margin: 0;
 }
