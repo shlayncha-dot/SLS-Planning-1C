@@ -797,6 +797,23 @@
     outline: 1px solid #e0b100;
 }
 
+.kd-table td.kd-cell-naming-issue {
+    background: #fff0a6;
+}
+
+.naming-report {
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.naming-report.success {
+    color: #1c8a3f;
+}
+
+.naming-report.error {
+    color: #b23636;
+}
+
 .kd-table td {
     user-select: text;
     cursor: text;

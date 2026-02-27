@@ -10,7 +10,9 @@ const KDTableRow = React.memo(({
     isChecked,
     onToggleRow,
     selectedCell,
-    onSelectCell
+    onSelectCell,
+    namingIssuesByRowId,
+    namingTargetColumnKey
 }) => (
     <tr className={isChecked ? 'kd-row-checked' : ''}>
         <td>
@@ -22,11 +24,16 @@ const KDTableRow = React.memo(({
         </td>
         {tableColumns.map((column) => {
             const isSelectedCell = selectedCell?.rowId === row.id && selectedCell?.columnKey === column.key;
+            const isNamingIssueCell = namingTargetColumnKey === column.key && Boolean(namingIssuesByRowId[row.id]);
+            const cellClassName = [
+                isSelectedCell ? 'kd-cell-selected' : '',
+                isNamingIssueCell ? 'kd-cell-naming-issue' : ''
+            ].filter(Boolean).join(' ');
 
             return (
                 <td
                     key={`${row.id}-${column.key}`}
-                    className={isSelectedCell ? 'kd-cell-selected' : ''}
+                    className={cellClassName}
                     onClick={() => onSelectCell(row.id, column.key)}
                     title={String(row[column.key] ?? '')}
                 >
@@ -54,7 +61,12 @@ const KDCheckView = ({
     searchValue,
     onSearchChange,
     onRunVerification,
-    verificationInProgress
+    verificationInProgress,
+    onRunNamingCheck,
+    namingCheckInProgress,
+    namingIssuesByRowId,
+    namingTargetColumnKey,
+    namingReport
 }) => {
     const [openFilterKey, setOpenFilterKey] = React.useState(null);
     const [pendingFilters, setPendingFilters] = React.useState({});
@@ -160,9 +172,11 @@ const KDCheckView = ({
                 onToggleRow={onToggleRow}
                 selectedCell={selectedCell}
                 onSelectCell={handleSelectCell}
+                namingIssuesByRowId={namingIssuesByRowId}
+                namingTargetColumnKey={namingTargetColumnKey}
             />
         ))
-    ), [checkedRows, handleSelectCell, onToggleRow, selectedCell, tableColumns, visibleRows]);
+    ), [checkedRows, handleSelectCell, namingIssuesByRowId, namingTargetColumnKey, onToggleRow, selectedCell, tableColumns, visibleRows]);
 
     const closeFilterPopover = React.useCallback(() => {
         setOpenFilterKey(null);
@@ -311,7 +325,7 @@ const KDCheckView = ({
                     onChange={onExcelUpload}
                 />
                 <button type="button" onClick={onRunVerification} disabled={verificationInProgress}>✅ {verificationInProgress ? 'Верификация...' : 'Верификация'}</button>
-                <button type="button">🏷️ Нейминг</button>
+                <button type="button" onClick={onRunNamingCheck} disabled={namingCheckInProgress}>🏷️ {namingCheckInProgress ? 'Проверка...' : 'Нейминг'}</button>
                 <button type="button">🧩 Общая проверка КД</button>
                 <label className="kd-search-control">
                     <span>🔎 Поиск</span>
@@ -323,6 +337,12 @@ const KDCheckView = ({
                     />
                 </label>
             </div>
+
+            {namingReport && (
+                <div className={`naming-report ${namingReport.isSuccess ? 'success' : 'error'}`}>
+                    {namingReport.message}
+                </div>
+            )}
 
             <div className="kd-table-wrap" ref={tableWrapRef} onScroll={handleTableScroll}>
                 <table className="kd-table" style={{ width: tablePixelWidth, minWidth: '100%' }}>
