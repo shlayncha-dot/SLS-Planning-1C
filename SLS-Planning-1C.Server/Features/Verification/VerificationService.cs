@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SLS_Planning_1C.Server.Features.FileIndexing;
 
 namespace SLS_Planning_1C.Server.Features.Verification;
@@ -205,8 +206,75 @@ public sealed class VerificationService : IVerificationService
         return normalized;
     }
 
+    private static IReadOnlyList<IndexedFileDto> ApplyType2Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files)
+    {
+        var detailKey = ExtractType2SearchKey(detailName);
+        if (detailKey is null)
+        {
+            return [];
+        }
+
+        return files
+            .Where(file =>
+            {
+                var fileKey = ExtractType2SearchKey(Path.GetFileNameWithoutExtension(file.FileName));
+                return fileKey is not null
+                    && string.Equals(fileKey.Prefix, detailKey.Prefix, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(fileKey.Suffix, detailKey.Suffix, StringComparison.Ordinal);
+            })
+            .ToList();
+    }
+
+    private static Type2SearchKey? ExtractType2SearchKey(string value)
+    {
+        var normalized = NormalizeType1DetailName(value);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var firstDot = normalized.IndexOf('.');
+        if (firstDot <= 0 || firstDot == normalized.Length - 1)
+        {
+            return null;
+        }
+
+        var prefix = normalized[..firstDot];
+        var suffix = TryExtractType2Suffix(normalized);
+        if (suffix is null)
+        {
+            return null;
+        }
+
+        return new Type2SearchKey(prefix, suffix);
+    }
+
+    private static string? TryExtractType2Suffix(string normalized)
+    {
+        string[] suffixPatterns =
+        [
+            @"0\d{2}\.\d{3}",
+            @"0\d{2}\.\d{2}",
+            @"0\d\.\d{3}",
+            @"0\d{2}",
+            @"0\d"
+        ];
+
+        foreach (var suffixPattern in suffixPatterns)
+        {
+            var match = Regex.Match(normalized, $@"({suffixPattern})$", RegexOptions.CultureInvariant);
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+        }
+
+        return null;
+    }
+
+    private readonly record struct Type2SearchKey(string Prefix, string Suffix);
+
     // Заглушки для дальнейшей детализации.
-    private static IReadOnlyList<IndexedFileDto> ApplyType2Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
     private static IReadOnlyList<IndexedFileDto> ApplyType3Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
     private static IReadOnlyList<IndexedFileDto> ApplyType4Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
     private static IReadOnlyList<IndexedFileDto> ApplyType5Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
