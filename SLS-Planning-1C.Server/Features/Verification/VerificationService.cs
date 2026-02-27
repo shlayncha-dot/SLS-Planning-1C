@@ -85,6 +85,11 @@ public sealed class VerificationService : IVerificationService
         return issues;
     }
 
+    private static bool ShouldSkipPdfSearch(string detailName)
+    {
+        return Regex.IsMatch(detailName.Trim(), @"(?:^|[\s\-_])WD$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
     private static bool IsAllowedDetailType(string detailType)
     {
         var normalized = detailType.Trim().ToLowerInvariant();
@@ -112,6 +117,11 @@ public sealed class VerificationService : IVerificationService
             }
 
             if (!row.Values.TryGetValue(designationColumn, out var detailName) || string.IsNullOrWhiteSpace(detailName))
+            {
+                continue;
+            }
+
+            if (ShouldSkipPdfSearch(detailName))
             {
                 continue;
             }
