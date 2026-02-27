@@ -29,4 +29,5 @@ jobs:
           git remote add gitlab "https://${GITLAB_USER}:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT}.git"
 
           # Зеркалим ветки + теги
-          git push --mirror gitlab
+          git push gitlab --all
+          git push gitlab --tags
