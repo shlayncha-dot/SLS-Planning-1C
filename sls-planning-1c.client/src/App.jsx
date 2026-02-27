@@ -7,17 +7,19 @@ import MainWorkspace from './components/MainWorkspace';
 import DashboardWorkspace from './components/DashboardWorkspace';
 import { menuConfig } from './config/menuConfig';
 import { t } from './config/translations';
+import { createUser, getUsers, loginUser, updateUserAccess } from './services/userService';
 
 const STORAGE_KEY = 'sls-auth-data';
 
 function App() {
-    const [isLoggedIn, setIsLoggedIn] = useState(true);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [activeTab, setActiveTab] = useState(0);
     const [activeSubItem, setActiveSubItem] = useState(0);
     const [lang, setLang] = useState('RU');
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [settingsContext, setSettingsContext] = useState('none');
     const [activeAdminSubItem, setActiveAdminSubItem] = useState(0);
+    const [usersList, setUsersList] = useState([]);
     const [savedLogin, setSavedLogin] = useState(() => {
         const data = localStorage.getItem(STORAGE_KEY);
 
@@ -35,12 +37,14 @@ function App() {
     });
 
     const [user, setUser] = useState({
-        firstName: 'Anna',
-        lastName: 'Smith',
-        phone: '+380 99 123 45 67',
-        email: 'anna.smith@sls.com',
-        avatar: 'https://i.pravatar.cc/100?img=32',
-        isAdmin: true
+        login: '',
+        role: 'Oper',
+        firstName: '',
+        lastName: '',
+        phone: '',
+        email: '',
+        photoUrl: '',
+        isAdmin: false
     });
 
     const isDashboardScreenMode = useMemo(() => {
@@ -78,19 +82,33 @@ function App() {
         setShowUserMenu(false);
     };
 
-    const openAdminSettings = () => {
+    const openAdminSettings = async () => {
         setSettingsContext('admin');
         setActiveAdminSubItem(0);
         setShowUserMenu(false);
+
+        if (!user.isAdmin) {
+            return;
+        }
+
+        try {
+            const users = await getUsers(user.login);
+            setUsersList(users);
+        } catch {
+            setUsersList([]);
+        }
     };
 
     const logout = () => {
         setIsLoggedIn(false);
         setShowUserMenu(false);
         setSettingsContext('none');
+        setUsersList([]);
     };
 
-    const login = ({ login: loginName, rememberMe }) => {
+    const login = async ({ login: loginName, password, rememberMe }) => {
+        const authenticatedUser = await loginUser(loginName, password);
+        setUser(authenticatedUser);
         setIsLoggedIn(true);
         setSettingsContext('none');
 
@@ -102,6 +120,18 @@ function App() {
 
         localStorage.removeItem(STORAGE_KEY);
         setSavedLogin('');
+    };
+
+    const handleCreateUser = async ({ login: loginName, password }) => {
+        await createUser({ adminLogin: user.login, login: loginName, password });
+        const users = await getUsers(user.login);
+        setUsersList(users);
+    };
+
+    const handleSaveUserAccess = async ({ login: loginName, role, isAdmin }) => {
+        await updateUserAccess({ adminLogin: user.login, login: loginName, role, isAdmin });
+        const users = await getUsers(user.login);
+        setUsersList(users);
     };
 
     if (isDashboardScreenMode) {
@@ -158,7 +188,7 @@ function App() {
                     <div className="workspace">
                         {settingsContext !== 'account' && (
                             <SubMenuSidebar
-                                currentSubMenu={settingsContext === 'admin' ? [t(lang, 'admin.userSettings')] : currentSubMenu}
+                                currentSubMenu={settingsContext === 'admin' ? [t(lang, 'admin.createUser'), t(lang, 'admin.userSettings')] : currentSubMenu}
                                 activeSubItem={settingsContext === 'admin' ? activeAdminSubItem : activeSubItem}
                                 onSubMenuClick={settingsContext === 'admin' ? openAdminSubMenuItem : openSubMenuItem}
                             />
@@ -175,6 +205,9 @@ function App() {
                                 currentSubMenu={currentSubMenu}
                                 activeSubItem={activeSubItem}
                                 activeAdminSubItem={activeAdminSubItem}
+                                usersList={usersList}
+                                onCreateUser={handleCreateUser}
+                                onSaveUserAccess={handleSaveUserAccess}
                             />
                         </main>
                     </div>

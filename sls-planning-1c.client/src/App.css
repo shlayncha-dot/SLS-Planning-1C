@@ -1205,3 +1205,45 @@
 .verification-duplicates-list p {
     margin: 0;
 }
+
+.form-success {
+    margin: 0;
+    color: #027a48;
+    font-size: 13px;
+}
+
+.settings-btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.password-panel,
+.admin-card {
+    margin-top: 16px;
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 14px;
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+    max-width: 520px;
+}
+
+.admin-settings-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-state {
+    width: 100%;
+}
+
+.admin-card input,
+.admin-card select,
+.password-panel input,
+.settings-avatar input {
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    padding: 8px 10px;
+}

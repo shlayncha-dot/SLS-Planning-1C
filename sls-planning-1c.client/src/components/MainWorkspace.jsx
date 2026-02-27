@@ -2,18 +2,37 @@ import React from 'react';
 import Settings from './Settings';
 import DashboardWorkspace from './DashboardWorkspace';
 import DesignDocsWorkspace from './DesignDocsWorkspace';
+import AdminSettings from './AdminSettings';
 import { t } from '../config/translations';
 
-const MainWorkspace = ({ lang, settingsContext, user, setUser, closeAccountSettings, activeTab, currentSubMenu, activeSubItem, activeAdminSubItem }) => {
+const MainWorkspace = ({
+    lang,
+    settingsContext,
+    user,
+    setUser,
+    closeAccountSettings,
+    activeTab,
+    currentSubMenu,
+    activeSubItem,
+    activeAdminSubItem,
+    usersList,
+    onCreateUser,
+    onSaveUserAccess
+}) => {
     if (settingsContext === 'account') {
         return <Settings lang={lang} user={user} setUser={setUser} setIsSettingsOpen={closeAccountSettings} />;
     }
 
     if (settingsContext === 'admin') {
         return (
-            <div className="empty-state admin-state">
+            <div className="admin-state">
                 <h2>{t(lang, 'header.admin')}</h2>
-                {activeAdminSubItem === 0 ? <p>{t(lang, 'admin.userSettings')}</p> : <p>{t(lang, 'common.inDevelopment')}</p>}
+                <AdminSettings
+                    usersList={usersList}
+                    onCreateUser={onCreateUser}
+                    onSaveUserAccess={onSaveUserAccess}
+                    activeAdminSubItem={activeAdminSubItem}
+                />
             </div>
         );
     }
@@ -24,7 +43,6 @@ const MainWorkspace = ({ lang, settingsContext, user, setUser, closeAccountSetti
     if (activeTab === 0 && settingsContext === 'none') {
         return <DesignDocsWorkspace activeSubItem={activeSubItem} />;
     }
-
 
     return (
         <div className="empty-state">
