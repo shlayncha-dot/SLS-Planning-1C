@@ -8,7 +8,7 @@ function Get-Config {
     param([string]$Path)
 
     if (!(Test-Path $Path)) {
-        throw "Файл конфигурации не найден: $Path"
+        throw "Config file not found: $Path"
     }
 
     return Get-Content $Path -Raw | ConvertFrom-Json
@@ -18,23 +18,23 @@ function Assert-Config {
     param($Config)
 
     if (-not ($Config.serverUrl -is [string]) -or [string]::IsNullOrWhiteSpace($Config.serverUrl)) {
-        throw "Параметр config.serverUrl должен быть непустой строкой, например: http://localhost:5197"
+        throw "config.serverUrl must be a non-empty string, for example: http://localhost:5197"
     }
 
     if (-not ($Config.syncEndpoint -is [string]) -or [string]::IsNullOrWhiteSpace($Config.syncEndpoint)) {
-        throw "Параметр config.syncEndpoint должен быть непустой строкой, например: /api/file-index/sync"
+        throw "config.syncEndpoint must be a non-empty string, for example: /api/file-index/sync"
     }
 
     if (-not ($Config.scanRoot -is [string]) -or [string]::IsNullOrWhiteSpace($Config.scanRoot)) {
-        throw "Параметр config.scanRoot должен быть непустой строкой, например: ."
+        throw "config.scanRoot must be a non-empty string, for example: ."
     }
 
     if (-not ($Config.machineId -is [string]) -or [string]::IsNullOrWhiteSpace($Config.machineId)) {
-        throw "Параметр config.machineId должен быть непустой строкой"
+        throw "config.machineId must be a non-empty string"
     }
 
     if (-not ($Config.scanIntervalSeconds -as [int]) -or [int]$Config.scanIntervalSeconds -le 0) {
-        throw "Параметр config.scanIntervalSeconds должен быть числом больше 0"
+        throw "config.scanIntervalSeconds must be a number greater than 0"
     }
 }
 
@@ -56,11 +56,11 @@ function Get-IndexedFiles {
         [string]$BasePath
     )
 
-    $files = Get-ChildItem -Path $RootPath -Recurse -File |
+    $files = @(Get-ChildItem -Path $RootPath -Recurse -File |
         Where-Object { $_.Extension -in @('.pdf', '.dxf', '.PDF', '.DXF') } |
-        Sort-Object FullName
+        Sort-Object FullName)
 
-    return $files | ForEach-Object {
+    return @($files | ForEach-Object {
         [PSCustomObject]@{
             fileName = $_.Name
             relativePath = Get-RelativePath -BasePath $BasePath -TargetPath $_.FullName
@@ -68,13 +68,23 @@ function Get-IndexedFiles {
             lastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o')
             sizeBytes = $_.Length
         }
-    }
+    })
 }
 
 function Get-SnapshotHash {
     param($Files)
 
-    $raw = ($Files | ConvertTo-Json -Depth 6 -Compress)
+    $normalizedFiles = @($Files)
+    if ($normalizedFiles.Count -eq 0) {
+        $raw = '[]'
+    }
+    else {
+        $raw = ($normalizedFiles | ConvertTo-Json -Depth 6 -Compress)
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            $raw = '[]'
+        }
+    }
+
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($raw)
     $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
     return ([BitConverter]::ToString($hash)).Replace('-', '').ToLowerInvariant()
@@ -107,7 +117,7 @@ $basePath = $PSScriptRoot
 $scanRoot = Resolve-Path (Join-Path $basePath $config.scanRoot)
 $lastHash = ''
 
-Write-Host "Индексация запущена. Корень сканирования: $scanRoot"
+Write-Host "Indexer started. Scan root: $scanRoot"
 
 while ($true) {
     try {
@@ -124,14 +134,14 @@ while ($true) {
                 -Files $files
 
             if ($result.updated -eq $true) {
-                Write-Host "[$(Get-Date -Format 's')] Обновлено файлов: $($result.fileCount)"
+                Write-Host "[$(Get-Date -Format 's')] Updated files: $($result.fileCount)"
             }
 
             $lastHash = $hash
         }
     }
     catch {
-        Write-Host "[$(Get-Date -Format 's')] Ошибка: $($_.Exception.Message)"
+        Write-Host "[$(Get-Date -Format 's')] Error: $($_.Exception.Message)"
     }
 
     Start-Sleep -Seconds ([int]$config.scanIntervalSeconds)
