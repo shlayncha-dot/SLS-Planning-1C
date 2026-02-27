@@ -286,10 +286,104 @@ public sealed class VerificationService : IVerificationService
 
     private readonly record struct Type2SearchKey(string Prefix, string Suffix);
 
-    // Заглушки для дальнейшей детализации.
-    private static IReadOnlyList<IndexedFileDto> ApplyType3Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
+    private static IReadOnlyList<IndexedFileDto> ApplyType3Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files)
+    {
+        var detailKey = ExtractType3SearchKey(detailName);
+        if (detailKey is null)
+        {
+            return [];
+        }
+
+        var key = detailKey.Value;
+
+        return files
+            .Where(file =>
+            {
+                var fileKey = ExtractType3SearchKey(Path.GetFileNameWithoutExtension(file.FileName));
+                if (fileKey is null)
+                {
+                    return false;
+                }
+
+                var candidate = fileKey.Value;
+
+                if (!string.Equals(candidate.Prefix, key.Prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(candidate.Suffix, key.Suffix, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (key.Revision is not null
+                    && !string.Equals(candidate.Revision, key.Revision, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                return key.RestContainsSpecialSymbols
+                    ? candidate.RestContainsSpecialSymbols
+                    : !candidate.RestContainsSpecialSymbols;
+            })
+            .ToList();
+    }
     private static IReadOnlyList<IndexedFileDto> ApplyType4Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
     private static IReadOnlyList<IndexedFileDto> ApplyType5Algorithm(string detailName, IReadOnlyList<IndexedFileDto> files) => FindExactByFileName(detailName, files);
+
+    private static Type3SearchKey? ExtractType3SearchKey(string value)
+    {
+        var normalized = value.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(
+            normalized,
+            @"^(?<prefix>[^.]+)\.(?<rest>.*)\.(?<suffix>\d{3}\.\d{3}|\d{3}\.\d{2}|\d{2}\.\d{3}|\d{3}|\d{2})(?<revision>\.[Rr](?:\.\d+(?:\.\d+)?|\d+(?:\.\d+)?))?(?<trash>-.*)?$",
+            RegexOptions.CultureInvariant);
+
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var prefix = match.Groups["prefix"].Value;
+        var rest = match.Groups["rest"].Value;
+        var suffix = match.Groups["suffix"].Value;
+
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return null;
+        }
+
+        var revisionGroup = match.Groups["revision"].Value;
+        var revision = string.IsNullOrWhiteSpace(revisionGroup)
+            ? null
+            : revisionGroup[1..];
+
+        return new Type3SearchKey(
+            prefix,
+            rest,
+            suffix,
+            revision,
+            ContainsType3RestSpecialSymbol(rest));
+    }
+
+    private static bool ContainsType3RestSpecialSymbol(string rest)
+    {
+        return rest.Contains('x', StringComparison.OrdinalIgnoreCase)
+               || rest.Contains('-');
+    }
+
+    private readonly record struct Type3SearchKey(
+        string Prefix,
+        string Rest,
+        string Suffix,
+        string? Revision,
+        bool RestContainsSpecialSymbols);
 
     private static string? ResolveColumnKey(IReadOnlyList<VerifyRowDto> rows, string containsText)
     {
