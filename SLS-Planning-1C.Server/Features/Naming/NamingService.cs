@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Authentication;
 using Microsoft.Extensions.Options;
 
 namespace SLS_Planning_1C.Server.Features.Naming;
@@ -40,24 +41,8 @@ public sealed class NamingService : INamingService
         }
 
         var payload = request.Items.Select(item => new { name = item.Name }).ToList();
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
-        {
-            Content = content
-        };
-
-        AddBasicAuthorizationHeaderIfConfigured(httpRequest);
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new NamingServiceException($"Не удалось подключиться к сервису Нейминг: {ex.Message}", HttpStatusCode.BadGateway);
-        }
+        var payloadJson = JsonSerializer.Serialize(payload);
+        var response = await SendWithTlsFallbackAsync(payloadJson, cancellationToken);
 
         using (response)
         {
@@ -107,6 +92,73 @@ public sealed class NamingService : INamingService
                 };
             }
         }
+    }
+
+    private async Task<HttpResponseMessage> SendWithTlsFallbackAsync(string payloadJson, CancellationToken cancellationToken)
+    {
+        var attempts = new[]
+        {
+            new HttpTlsAttempt("SystemDefault", null),
+            new HttpTlsAttempt("TLS1.3", SslProtocols.Tls13),
+            new HttpTlsAttempt("TLS1.2", SslProtocols.Tls12)
+        };
+
+        Exception? lastError = null;
+
+        foreach (var attempt in attempts)
+        {
+            try
+            {
+                using var request = BuildRequest(payloadJson);
+
+                if (attempt.Protocol is null)
+                {
+                    return await _httpClient.SendAsync(request, cancellationToken);
+                }
+
+                using var handler = CreateHttpHandler(attempt.Protocol);
+                using var client = new HttpClient(handler, disposeHandler: true);
+                return await client.SendAsync(request, cancellationToken);
+            }
+            catch (HttpRequestException ex)
+            {
+                lastError = ex;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                lastError = new TimeoutException($"Таймаут при попытке {attempt.Name}.");
+            }
+        }
+
+        throw new NamingServiceException($"Не удалось подключиться к сервису Нейминг: {lastError?.Message}", HttpStatusCode.BadGateway);
+    }
+
+    private HttpRequestMessage BuildRequest(string payloadJson)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
+        {
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+        };
+
+        AddBasicAuthorizationHeaderIfConfigured(request);
+        return request;
+    }
+
+    private HttpClientHandler CreateHttpHandler(SslProtocols? protocol)
+    {
+        var handler = new HttpClientHandler();
+
+        if (protocol.HasValue)
+        {
+            handler.SslProtocols = protocol.Value;
+        }
+
+        if (_options.IgnoreSslErrors)
+        {
+            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+        }
+
+        return handler;
     }
 
     private void AddBasicAuthorizationHeaderIfConfigured(HttpRequestMessage request)
@@ -181,6 +233,8 @@ public sealed class NamingService : INamingService
         return "Not found";
     }
 }
+
+public sealed record HttpTlsAttempt(string Name, SslProtocols? Protocol);
 
 public sealed class NamingServiceException : Exception
 {
