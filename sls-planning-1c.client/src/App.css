@@ -643,10 +643,10 @@
 
 
 .main-display.admin-mode {
-    align-items: flex-start;
-    justify-content: center;
+    align-items: stretch;
+    justify-content: stretch;
     padding: 24px;
-    overflow: auto;
+    overflow: hidden;
 }
 
 
@@ -1278,9 +1278,15 @@
     justify-items: stretch;
 }
 
+.admin-settings-grid--users {
+    height: 100%;
+    min-height: 0;
+}
+
 .admin-state {
     width: 100%;
-    max-width: 920px;
+    height: 100%;
+    min-height: 0;
 }
 
 .admin-card input,
@@ -1296,11 +1302,15 @@
 .admin-card--wide {
     max-width: 100%;
     width: 100%;
+    height: 100%;
+    min-height: 0;
     margin-top: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .admin-users-table-wrap {
     width: 100%;
+    min-height: 0;
     overflow: auto;
     border: 1px dashed #666;
     background: #fff;

@@ -86,7 +86,7 @@ const AdminSettings = ({ usersList, onCreateUser, onSaveUserAccess, activeAdminS
     };
 
     return (
-        <div className="admin-settings-grid">
+        <div className={`admin-settings-grid ${activeAdminSubItem === 1 ? 'admin-settings-grid--users' : ''}`}>
             {activeAdminSubItem === 0 ? (
                 <section className="admin-card">
                     <h3>Создать пользователя</h3>
