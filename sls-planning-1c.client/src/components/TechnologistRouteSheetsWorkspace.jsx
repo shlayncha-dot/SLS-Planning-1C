@@ -32,15 +32,16 @@ const toLines = (text) => {
 
 const toSectionDetails = (settings, sectionName) => {
     if (!sectionName) {
-        return { parameters: [], qc: [] };
+        return { equipment: [], parameters: [], qc: [] };
     }
 
     const exact = settings.sectionDetailsByName?.[sectionName];
     const byCaseInsensitiveKey = exact
         ?? Object.entries(settings.sectionDetailsByName || {}).find(([key]) => key.toLowerCase() === sectionName.toLowerCase())?.[1]
-        ?? { parametersText: '', qcText: '' };
+        ?? { equipmentText: settings.equipmentText || '', parametersText: '', qcText: '' };
 
     return {
+        equipment: toLines(byCaseInsensitiveKey.equipmentText),
         parameters: toLines(byCaseInsensitiveKey.parametersText),
         qc: toLines(byCaseInsensitiveKey.qcText)
     };
@@ -99,14 +100,13 @@ const TechnologistRouteSheetsWorkspace = () => {
     }, []);
 
     const sectionOptions = useMemo(() => toLines(settingsData.sectionsText), [settingsData.sectionsText]);
-    const equipmentOptions = useMemo(() => toLines(settingsData.equipmentText), [settingsData.equipmentText]);
-
     const effectiveSelectedSopSection = sectionOptions.some((section) => section.toLowerCase() === selectedSopSection.toLowerCase())
         ? selectedSopSection
         : (sectionOptions[0] || '');
 
 
     const sectionDetails = useMemo(() => toSectionDetails(settingsData, effectiveSelectedSopSection), [settingsData, effectiveSelectedSopSection]);
+    const equipmentOptions = sectionDetails.equipment;
 
     const activeSpecificationRows = useMemo(() => {
         if (!appliedProject || !appliedSpecification) {
@@ -221,7 +221,7 @@ const TechnologistRouteSheetsWorkspace = () => {
                         </div>
 
                         <div className="sop-settings-column">
-                            <h4>Оборудование/Технология</h4>
+                            <h4>Оборудование</h4>
                             <div className="sop-options-list">
                                 {equipmentOptions.length === 0 ? (
                                     <p className="sop-empty-note">Нет данных в настройках маршрутного листа.</p>
