@@ -90,7 +90,7 @@ const AdminSettings = ({ usersList, onCreateUser, onSaveUserAccess, activeAdminS
             {activeAdminSubItem === 0 ? (
                 <section className="admin-card">
                     <h3>Создать пользователя</h3>
-                    <label>Login</label>
+                    <label>Логин</label>
                     <input
                         type="text"
                         value={createForm.login}

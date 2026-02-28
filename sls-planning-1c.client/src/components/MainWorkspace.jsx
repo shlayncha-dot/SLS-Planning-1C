@@ -26,7 +26,6 @@ const MainWorkspace = ({
     if (settingsContext === 'admin') {
         return (
             <div className="admin-state">
-                <h2>{t(lang, 'header.admin')}</h2>
                 <AdminSettings
                     usersList={usersList}
                     onCreateUser={onCreateUser}
