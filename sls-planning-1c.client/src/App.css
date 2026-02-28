@@ -620,6 +620,15 @@
     padding: 20px;
 }
 
+
+.main-display.admin-mode {
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px;
+    overflow: auto;
+}
+
+
 .design-docs-page {
     width: 100%;
     height: 100%;
@@ -1233,10 +1242,12 @@
 .admin-settings-grid {
     display: grid;
     gap: 12px;
+    justify-items: center;
 }
 
 .admin-state {
     width: 100%;
+    max-width: 920px;
 }
 
 .admin-card input,
