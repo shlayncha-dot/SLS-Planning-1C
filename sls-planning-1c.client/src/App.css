@@ -2030,6 +2030,13 @@
     margin: 0 0 16px;
 }
 
+.production-order-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
 .production-order-table-block {
     border: 1px solid #e5e7eb;
     border-radius: 12px;
@@ -2075,11 +2082,13 @@
     margin-bottom: 16px;
 }
 
-.production-order-field input {
+.production-order-field input,
+.production-order-field select {
     border: 1px solid #d1d5db;
     border-radius: 8px;
     padding: 10px;
     font-size: 14px;
+    background: #fff;
 }
 
 .production-order-actions {
@@ -2106,6 +2115,49 @@
 .production-order-cancel-btn {
     background: #e5e7eb;
     color: #1f2937;
+}
+
+
+.production-order-actions {
+    margin-bottom: 16px;
+}
+
+.production-order-add-btn:disabled,
+.production-order-create-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.production-order-spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.production-order-spec-table th,
+.production-order-spec-table td {
+    border: 1px solid #dbe4ef;
+    padding: 8px 10px;
+    font-size: 13px;
+    text-align: left;
+}
+
+.production-order-spec-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    z-index: 1;
+    font-weight: 700;
+}
+
+.production-order-spec-table th:first-child,
+.production-order-spec-table td:first-child {
+    width: 44px;
+    text-align: center;
+}
+
+.production-order-spec-table tbody tr.is-checked {
+    background: #eef2ff;
 }
 
 .production-order-modal-backdrop {
