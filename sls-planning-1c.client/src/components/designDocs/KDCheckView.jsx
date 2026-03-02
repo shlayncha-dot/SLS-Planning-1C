@@ -1,7 +1,7 @@
 import React from 'react';
 
 const MIN_COLUMN_WIDTH = 48;
-const VIRTUAL_ROW_HEIGHT = 40;
+const VIRTUAL_ROW_HEIGHT = 34;
 const VIRTUAL_OVERSCAN = 8;
 
 const formatMissingForCopy = (items) => (items.length ? items.map((item) => `- ${item}`).join('\n') : '—');
@@ -18,7 +18,7 @@ const KDTableRow = React.memo(({
     verificationIssuesByRowId,
     designationTargetColumnKey
 }) => (
-    <tr className={isChecked ? 'kd-row-checked' : ''}>
+    <tr className={`kd-data-row ${isChecked ? 'kd-row-checked' : ''}`.trim()}>
         <td>
             <input
                 type="checkbox"
