@@ -3,15 +3,15 @@ import React from 'react';
 const SpecificationUploadView = ({
     productName,
     onProductNameChange,
-    onOpenProductList,
     selectedSpecType,
     onSpecTypeChange,
+    comment,
+    onCommentChange,
     uploadFileName,
     uploadInputRef,
     onUploadFileChange,
-    specsByProduct,
-    specVersion,
     onSave,
+    onCancel,
     isSaving,
     productList,
     isProductDialogOpen,
@@ -26,73 +26,65 @@ const SpecificationUploadView = ({
                 <article className="spec-card">
                     <h2>Загрузка спецификации</h2>
 
-                    <div className="spec-product-row">
-                        <label className="field-group spec-product-field">
-                            Наименование изделия
-                            <input
-                                type="text"
-                                value={productName}
-                                onChange={(event) => onProductNameChange(event.target.value)}
-                                placeholder="Введите или выберите наименование"
+                    <div className="spec-upload-form-grid">
+                        <div className="spec-upload-left-column">
+                            <label className="field-group spec-product-field">
+                                Наименование спецификации
+                                <input
+                                    type="text"
+                                    value={productName}
+                                    onChange={(event) => onProductNameChange(event.target.value)}
+                                    placeholder="Введите наименование"
+                                />
+                            </label>
+
+                            <label className="field-group">
+                                Тип спецификации
+                                <select value={selectedSpecType} onChange={(event) => onSpecTypeChange(event.target.value)}>
+                                    <option value="Basic">Basic</option>
+                                    <option value="Wire">Wire</option>
+                                    <option value="Packaging">Packaging</option>
+                                    <option value="Tech">Tech</option>
+                                </select>
+                            </label>
+
+                            <div className="field-group">
+                                Загрузить Excel
+                                <div className="inline-file-upload">
+                                    <input type="text" value={uploadFileName} readOnly placeholder="Файл не выбран" />
+                                    <button type="button" onClick={() => uploadInputRef.current?.click()}>
+                                        Выбрать файл
+                                    </button>
+                                    <input
+                                        ref={uploadInputRef}
+                                        type="file"
+                                        accept=".xls,.xlsx"
+                                        className="hidden-input"
+                                        onChange={(event) => onUploadFileChange(event.target.files?.[0] || null)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <label className="field-group spec-comment-field">
+                            Комментарий
+                            <textarea
+                                rows={10}
+                                value={comment}
+                                onChange={(event) => onCommentChange(event.target.value)}
+                                placeholder="Добавьте комментарий"
                             />
                         </label>
-                        <button type="button" className="cancel-btn" onClick={onOpenProductList}>
-                            Список наименований
+                    </div>
+
+                    <div className="spec-upload-actions">
+                        <button type="button" className="save-btn" onClick={onSave} disabled={isSaving}>
+                            {isSaving ? 'Загрузка…' : 'Загрузить'}
+                        </button>
+                        <button type="button" className="cancel-btn" onClick={onCancel} disabled={isSaving}>
+                            Отмена
                         </button>
                     </div>
-
-                    <label className="field-group">
-                        Тип спецификации
-                        <select value={selectedSpecType} onChange={(event) => onSpecTypeChange(event.target.value)}>
-                            <option value="Basic">Basic — Базовая</option>
-                            <option value="Wire">Wire — Жгуты</option>
-                            <option value="Packaging">Packaging — Упаковка</option>
-                            <option value="Tech">Tech — Технологичная</option>
-                        </select>
-                    </label>
-
-                    <div className="field-group">
-                        Загрузить Excel
-                        <div className="inline-file-upload">
-                            <input type="text" value={uploadFileName} readOnly placeholder="Файл не выбран" />
-                            <button type="button" onClick={() => uploadInputRef.current?.click()}>
-                                Загрузить Excel
-                            </button>
-                            <input
-                                ref={uploadInputRef}
-                                type="file"
-                                accept=".xls,.xlsx"
-                                className="hidden-input"
-                                onChange={(event) => onUploadFileChange(event.target.files?.[0] || null)}
-                            />
-                        </div>
-                    </div>
-
-                    <label className="field-group">
-                        Версия спецификации
-                        <input type="text" readOnly value={specVersion || '—'} />
-                    </label>
-
-                    <div className="field-group">
-                        Список всех спецификаций по текущей номенклатуре
-                        <div className="spec-history-list">
-                            {specsByProduct.length === 0 ? (
-                                <p className="spec-empty-state">Для выбранной номенклатуры спецификации пока не загружены.</p>
-                            ) : (
-                                <ul>
-                                    {specsByProduct.map((item) => (
-                                        <li key={`${item.specificationCode}-${item.uploadedAtUtc}`}>
-                                            <strong>{item.specificationCode}</strong> — v{item.version} ({item.specType})
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <button type="button" className="save-btn" onClick={onSave} disabled={isSaving}>
-                        {isSaving ? 'Сохранение…' : 'Сохранить'}
-                    </button>
                 </article>
             </div>
 

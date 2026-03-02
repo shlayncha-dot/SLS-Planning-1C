@@ -150,10 +150,9 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     const [productName, setProductName] = useState('');
     const [selectedSpecType, setSelectedSpecType] = useState('Basic');
     const [selectedUploadFile, setSelectedUploadFile] = useState(null);
-    const [specsByProduct, setSpecsByProduct] = useState([]);
     const [productList, setProductList] = useState([]);
-    const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
     const [specVersion, setSpecVersion] = useState(1);
+    const [specComment, setSpecComment] = useState('');
     const [isSpecSaving, setIsSpecSaving] = useState(false);
     const [uploadStatus, setUploadStatus] = useState(null);
     const [verificationParams, setVerificationParams] = useState(createVerificationParams);
@@ -238,7 +237,6 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         const normalizedProductName = productName.trim();
 
         if (!normalizedProductName) {
-            setSpecsByProduct([]);
             setSpecVersion(1);
             return;
         }
@@ -247,23 +245,13 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
 
         const loadSpecificationData = async () => {
             const query = encodeURIComponent(normalizedProductName);
-            const [specsResponse, versionResponse] = await Promise.all([
-                fetch(`${specificationUploadApi.specifications}?productName=${query}`, { signal: controller.signal }),
-                fetch(`${specificationUploadApi.nextVersion}?productName=${query}&specType=${selectedSpecType}`, { signal: controller.signal })
-            ]);
-
-            if (!specsResponse.ok) {
-                throw new Error('Не удалось загрузить список спецификаций.');
-            }
+            const versionResponse = await fetch(`${specificationUploadApi.nextVersion}?productName=${query}&specType=${selectedSpecType}`, { signal: controller.signal });
 
             if (!versionResponse.ok) {
                 throw new Error('Не удалось определить следующую версию спецификации.');
             }
 
-            const specs = await specsResponse.json();
             const versionData = await versionResponse.json();
-
-            setSpecsByProduct(Array.isArray(specs) ? specs : []);
             setSpecVersion(Number(versionData.nextVersion) || 1);
         };
 
@@ -284,7 +272,6 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
 
     const handleSelectProduct = useCallback((name) => {
         setProductName(name);
-        setIsProductDialogOpen(false);
     }, []);
 
     const handleSaveSpecification = useCallback(async () => {
@@ -307,6 +294,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
             formData.append('productName', normalizedProductName);
             formData.append('specType', selectedSpecType);
             formData.append('version', String(specVersion));
+            formData.append('comment', specComment.trim());
             formData.append('file', selectedUploadFile);
 
             const response = await fetch(specificationUploadApi.upload, {
@@ -322,24 +310,19 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
 
             setUploadStatus({ success: true, message: data.message || 'Спецификация успешно загружена.' });
             setSelectedUploadFile(null);
+            setSpecComment('');
             await loadProductNames();
 
             const query = encodeURIComponent(normalizedProductName);
-            const [specsResponse, versionResponse] = await Promise.all([
-                fetch(`${specificationUploadApi.specifications}?productName=${query}`),
-                fetch(`${specificationUploadApi.nextVersion}?productName=${query}&specType=${selectedSpecType}`)
-            ]);
-
-            const specs = specsResponse.ok ? await specsResponse.json() : [];
+            const versionResponse = await fetch(`${specificationUploadApi.nextVersion}?productName=${query}&specType=${selectedSpecType}`);
             const versionData = versionResponse.ok ? await versionResponse.json() : { nextVersion: specVersion + 1 };
-            setSpecsByProduct(Array.isArray(specs) ? specs : []);
             setSpecVersion(Number(versionData.nextVersion) || (specVersion + 1));
         } catch (error) {
             setUploadStatus({ success: false, message: error instanceof Error ? error.message : 'Ошибка загрузки спецификации.' });
         } finally {
             setIsSpecSaving(false);
         }
-    }, [loadProductNames, productName, selectedSpecType, selectedUploadFile, specVersion]);
+    }, [loadProductNames, productName, selectedSpecType, selectedUploadFile, specComment, specVersion]);
 
     const filteredRows = useMemo(() => {
         const normalizedSearch = searchValue.trim().toLowerCase();
@@ -788,6 +771,14 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         }
     };
 
+
+    const handleCancelSpecificationUpload = useCallback(() => {
+        setProductName('');
+        setSelectedSpecType('Basic');
+        setSelectedUploadFile(null);
+        setSpecComment('');
+    }, []);
+
     const handleCancelSettings = () => {
         setVerificationParams(savedVerificationParams.map((row) => ({ ...row })));
         setSpecificationSettings({ ...savedSpecificationSettings });
@@ -799,19 +790,19 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
                 <SpecificationUploadView
                     productName={productName}
                     onProductNameChange={setProductName}
-                    onOpenProductList={() => setIsProductDialogOpen(true)}
                     selectedSpecType={selectedSpecType}
                     onSpecTypeChange={setSelectedSpecType}
+                    comment={specComment}
+                    onCommentChange={setSpecComment}
                     uploadFileName={selectedUploadFile?.name || ''}
                     uploadInputRef={uploadInputRef}
                     onUploadFileChange={handleSpecFileChange}
-                    specsByProduct={specsByProduct}
-                    specVersion={specVersion}
                     onSave={handleSaveSpecification}
+                    onCancel={handleCancelSpecificationUpload}
                     isSaving={isSpecSaving}
                     productList={productList}
-                    isProductDialogOpen={isProductDialogOpen}
-                    onCloseProductDialog={() => setIsProductDialogOpen(false)}
+                    isProductDialogOpen={false}
+                    onCloseProductDialog={() => {}}
                     onSelectProduct={handleSelectProduct}
                     uploadStatus={uploadStatus}
                     onCloseStatusDialog={() => setUploadStatus(null)}
