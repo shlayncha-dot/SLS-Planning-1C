@@ -747,6 +747,40 @@
     grid-template-columns: 1fr;
 }
 
+
+.spec-upload-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: stretch;
+}
+
+.spec-upload-left-column {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.spec-comment-field {
+    height: 100%;
+}
+
+.spec-comment-field textarea {
+    flex: 1;
+    min-height: 100%;
+    border: 1px solid #d9d9d9;
+    border-radius: 10px;
+    padding: 11px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+}
+
+.spec-upload-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+}
 .spec-product-row {
     display: flex;
     gap: 10px;
