@@ -8,8 +8,16 @@ public enum SpecificationType
     Tech
 }
 
+public enum OneCSyncStatus
+{
+    Pending,
+    Synced,
+    Failed
+}
+
 public sealed class SpecificationRecordDto
 {
+    public Guid Id { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string SpecificationName { get; set; } = string.Empty;
     public SpecificationType SpecType { get; set; }
@@ -20,6 +28,8 @@ public sealed class SpecificationRecordDto
     public string Comment { get; set; } = string.Empty;
     public string StoragePath { get; set; } = string.Empty;
     public DateTimeOffset UploadedAtUtc { get; set; }
+    public OneCSyncStatus OneCSyncStatus { get; set; } = OneCSyncStatus.Pending;
+    public string OneCSyncMessage { get; set; } = string.Empty;
 }
 
 public sealed class SpecificationUploadRequest

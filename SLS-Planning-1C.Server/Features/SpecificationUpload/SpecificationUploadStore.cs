@@ -26,7 +26,13 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
         var dataDirectory = Path.Combine(environment.ContentRootPath, "App_Data");
         Directory.CreateDirectory(dataDirectory);
 
-        _dbFilePath = Path.Combine(dataDirectory, "specification-upload-db.json");
+        var legacyDbFilePath = Path.Combine(dataDirectory, "specification-upload-db.json");
+        _dbFilePath = Path.Combine(dataDirectory, "program-specification-db.json");
+
+        if (!File.Exists(_dbFilePath) && File.Exists(legacyDbFilePath))
+        {
+            File.Copy(legacyDbFilePath, _dbFilePath);
+        }
         _filesDirectory = Path.Combine(dataDirectory, "specification-files");
         Directory.CreateDirectory(_filesDirectory);
 
@@ -151,6 +157,7 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
 
             var record = new SpecificationRecordDto
             {
+                Id = Guid.NewGuid(),
                 ProductName = productName,
                 SpecificationName = specificationName,
                 SpecType = request.SpecType,
@@ -160,7 +167,9 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
                 UploadedBy = uploadedBy,
                 Comment = comment,
                 StoragePath = destinationPath,
-                UploadedAtUtc = DateTimeOffset.UtcNow
+                UploadedAtUtc = DateTimeOffset.UtcNow,
+                OneCSyncStatus = OneCSyncStatus.Pending,
+                OneCSyncMessage = "Ожидает дублирования на сервер 1С."
             };
 
             db.Specifications.Add(record);
@@ -169,7 +178,7 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
             return new SpecificationUploadResultDto
             {
                 Success = true,
-                Message = "Спецификация успешно отправлена на сервер 1С.",
+                Message = "Спецификация сохранена на сервере программы. Дублирование на сервер 1С будет добавлено следующим этапом.",
                 CreatedSpecification = record
             };
         }
