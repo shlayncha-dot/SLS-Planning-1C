@@ -207,6 +207,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     const verifyInputRef = useRef(null);
 
     const [productName, setProductName] = useState('');
+    const [specificationName, setSpecificationName] = useState('');
     const [selectedSpecType, setSelectedSpecType] = useState('Basic');
     const [selectedUploadFile, setSelectedUploadFile] = useState(null);
     const [productList, setProductList] = useState([]);
@@ -343,6 +344,11 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
             return;
         }
 
+        if (!specificationName.trim()) {
+            alert('Укажите наименование спецификации.');
+            return;
+        }
+
         if (!selectedUploadFile) {
             alert('Выберите Excel-файл спецификации.');
             return;
@@ -353,9 +359,11 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         try {
             const formData = new FormData();
             formData.append('productName', normalizedProductName);
+            formData.append('specificationName', specificationName.trim());
             formData.append('specType', selectedSpecType);
             formData.append('version', String(specVersion));
             formData.append('comment', specComment.trim());
+            formData.append('uploadedBy', String(namingLogin ?? '').trim());
             formData.append('file', selectedUploadFile);
 
             const response = await fetch(specificationUploadApi.upload, {
@@ -383,7 +391,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         } finally {
             setIsSpecSaving(false);
         }
-    }, [loadProductNames, productName, selectedSpecType, selectedUploadFile, specComment, specVersion]);
+    }, [loadProductNames, namingLogin, productName, selectedSpecType, selectedUploadFile, specComment, specVersion, specificationName]);
 
     const filteredRows = useMemo(() => {
         const normalizedSearch = searchValue.trim().toLowerCase();
@@ -978,6 +986,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
 
     const handleCancelSpecificationUpload = useCallback(() => {
         setProductName('');
+        setSpecificationName('');
         setSelectedSpecType('Basic');
         setSelectedUploadFile(null);
         setSpecComment('');
@@ -993,7 +1002,9 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
             <div className={`design-docs-subview ${activeSubItem === 0 ? 'active' : ''}`}>
                 <SpecificationUploadView
                     productName={productName}
+                    specificationName={specificationName}
                     onProductNameChange={setProductName}
+                    onSpecificationNameChange={setSpecificationName}
                     selectedSpecType={selectedSpecType}
                     onSpecTypeChange={setSelectedSpecType}
                     comment={specComment}

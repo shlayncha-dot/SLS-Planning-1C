@@ -96,12 +96,25 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
     public async Task<SpecificationUploadResultDto> UploadAsync(SpecificationUploadRequest request, CancellationToken cancellationToken)
     {
         var productName = request.ProductName.Trim();
+        var specificationName = request.SpecificationName.Trim();
+        var uploadedBy = request.UploadedBy.Trim();
+        var comment = request.Comment.Trim();
+
         if (string.IsNullOrWhiteSpace(productName))
         {
             return new SpecificationUploadResultDto
             {
                 Success = false,
                 Message = "Укажите наименование изделия."
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(specificationName))
+        {
+            return new SpecificationUploadResultDto
+            {
+                Success = false,
+                Message = "Укажите наименование спецификации."
             };
         }
 
@@ -125,23 +138,28 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
                 .Max() + 1;
 
             var version = request.Version <= 0 ? nextVersion : request.Version;
-            var specCode = BuildSpecificationCode(request.SpecType, productName, version);
+            var specCode = BuildSpecificationCode(request.SpecType, specificationName, version);
             var extension = Path.GetExtension(request.File.FileName);
             var safeFileName = $"{specCode}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{extension}";
             var destinationPath = Path.Combine(_filesDirectory, safeFileName);
 
             await using (var stream = File.Open(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                await request.File.CopyToAsync(stream, cancellationToken);
+                await using var fileStream = request.File.OpenReadStream();
+                await fileStream.CopyToAsync(stream, cancellationToken);
             }
 
             var record = new SpecificationRecordDto
             {
                 ProductName = productName,
+                SpecificationName = specificationName,
                 SpecType = request.SpecType,
                 Version = version,
                 SpecificationCode = specCode,
                 OriginalFileName = request.File.FileName,
+                UploadedBy = uploadedBy,
+                Comment = comment,
+                StoragePath = destinationPath,
                 UploadedAtUtc = DateTimeOffset.UtcNow
             };
 
