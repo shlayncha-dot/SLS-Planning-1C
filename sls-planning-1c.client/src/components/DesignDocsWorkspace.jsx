@@ -115,6 +115,18 @@ const getColumnKey = (header, index) => {
 
 const normalizeValue = (value) => String(value ?? '').trim();
 
+const normalizeLabelForMatch = (label) => normalizeValue(label).toLowerCase().replace(/[\s._-]+/g, '');
+
+const isTypeLabel = (label) => {
+    const normalized = normalizeLabelForMatch(label);
+    return normalized === 'тип' || normalized.startsWith('тип');
+};
+
+const isPositionLabel = (label) => {
+    const normalized = normalizeLabelForMatch(label);
+    return normalized === 'поз' || normalized.startsWith('поз') || normalized.startsWith('позиц');
+};
+
 const getColumnKeyByLabel = (columns, predicate) => {
     const targetColumn = columns.find((column) => predicate(normalizeValue(column.label).toLowerCase()));
     return targetColumn?.key || null;
@@ -202,6 +214,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     const [verificationIssuesByRowId, setVerificationIssuesByRowId] = useState({});
     const [verificationReport, setVerificationReport] = useState(null);
     const [namingCheckInProgress, setNamingCheckInProgress] = useState(false);
+    const [generalCheckInProgress, setGeneralCheckInProgress] = useState(false);
     const [namingIssuesByRowId, setNamingIssuesByRowId] = useState({});
     const [namingReport, setNamingReport] = useState(null);
     const [namingLogs, setNamingLogs] = useState([]);
@@ -446,8 +459,8 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
                 ...prevState,
                 [rowId]: nextCheckedValue
             };
-            const typeColumnKey = getColumnKeyByLabel(tableColumns, (label) => label === 'тип' || label.startsWith('тип '));
-            const positionColumnKey = getColumnKeyByLabel(tableColumns, (label) => label === 'поз' || label.startsWith('поз '));
+            const typeColumnKey = getColumnKeyByLabel(tableColumns, isTypeLabel);
+            const positionColumnKey = getColumnKeyByLabel(tableColumns, isPositionLabel);
             const toggledType = typeColumnKey ? toggledRow[typeColumnKey] : null;
 
             if (!isAssemblyType(toggledType)) {
@@ -767,6 +780,17 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         }
     }, [appendNamingLog, namingLogin, sortedRows, tableColumns]);
 
+    const runGeneralCheck = useCallback(async () => {
+        setGeneralCheckInProgress(true);
+
+        try {
+            await runVerification();
+            await runNamingCheck();
+        } finally {
+            setGeneralCheckInProgress(false);
+        }
+    }, [runNamingCheck, runVerification]);
+
     const namingTargetColumnKey = useMemo(() => {
         const nameColumn = tableColumns.find((column) => column.label.toLowerCase().includes('наимен'));
         return nameColumn?.key || null;
@@ -886,6 +910,8 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
                     verificationInProgress={verificationInProgress}
                     onRunNamingCheck={runNamingCheck}
                     namingCheckInProgress={namingCheckInProgress}
+                    onRunGeneralCheck={runGeneralCheck}
+                    generalCheckInProgress={generalCheckInProgress}
                     namingIssuesByRowId={namingIssuesByRowId}
                     namingTargetColumnKey={namingTargetColumnKey}
                     namingReport={namingReport}

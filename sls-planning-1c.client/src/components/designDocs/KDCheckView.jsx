@@ -77,6 +77,8 @@ const KDCheckView = ({
     verificationInProgress,
     onRunNamingCheck,
     namingCheckInProgress,
+    onRunGeneralCheck,
+    generalCheckInProgress,
     namingIssuesByRowId,
     namingTargetColumnKey,
     namingReport,
@@ -379,7 +381,7 @@ const KDCheckView = ({
                 />
                 <button type="button" onClick={onRunVerification} disabled={verificationInProgress}>✅ {verificationInProgress ? 'Верификация...' : 'Верификация'}</button>
                 <button type="button" onClick={onRunNamingCheck} disabled={namingCheckInProgress}>🏷️ {namingCheckInProgress ? 'Проверка...' : 'Нейминг'}</button>
-                <button type="button">🧩 Общая проверка КД</button>
+                <button type="button" onClick={onRunGeneralCheck} disabled={generalCheckInProgress || verificationInProgress || namingCheckInProgress}>🧩 {generalCheckInProgress ? 'Проверка...' : 'Общая проверка КД'}</button>
                 <label className="kd-search-control">
                     <span>🔎 Поиск</span>
                     <input
