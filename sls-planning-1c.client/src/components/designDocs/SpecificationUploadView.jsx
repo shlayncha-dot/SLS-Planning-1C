@@ -2,7 +2,9 @@ import React from 'react';
 
 const SpecificationUploadView = ({
     productName,
+    specificationName,
     onProductNameChange,
+    onSpecificationNameChange,
     selectedSpecType,
     onSpecTypeChange,
     comment,
@@ -29,12 +31,22 @@ const SpecificationUploadView = ({
                     <div className="spec-upload-form-grid">
                         <div className="spec-upload-left-column">
                             <label className="field-group spec-product-field">
-                                Наименование спецификации
+                                Наименование изделия
                                 <input
                                     type="text"
                                     value={productName}
                                     onChange={(event) => onProductNameChange(event.target.value)}
-                                    placeholder="Введите наименование"
+                                    placeholder="Введите наименование изделия"
+                                />
+                            </label>
+
+                            <label className="field-group spec-product-field">
+                                Наименование спецификации
+                                <input
+                                    type="text"
+                                    value={specificationName}
+                                    onChange={(event) => onSpecificationNameChange(event.target.value)}
+                                    placeholder="Введите наименование спецификации"
                                 />
                             </label>
 

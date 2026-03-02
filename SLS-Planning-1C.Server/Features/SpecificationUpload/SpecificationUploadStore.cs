@@ -26,7 +26,13 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
         var dataDirectory = Path.Combine(environment.ContentRootPath, "App_Data");
         Directory.CreateDirectory(dataDirectory);
 
-        _dbFilePath = Path.Combine(dataDirectory, "specification-upload-db.json");
+        var legacyDbFilePath = Path.Combine(dataDirectory, "specification-upload-db.json");
+        _dbFilePath = Path.Combine(dataDirectory, "program-specification-db.json");
+
+        if (!File.Exists(_dbFilePath) && File.Exists(legacyDbFilePath))
+        {
+            File.Copy(legacyDbFilePath, _dbFilePath);
+        }
         _filesDirectory = Path.Combine(dataDirectory, "specification-files");
         Directory.CreateDirectory(_filesDirectory);
 
@@ -96,12 +102,25 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
     public async Task<SpecificationUploadResultDto> UploadAsync(SpecificationUploadRequest request, CancellationToken cancellationToken)
     {
         var productName = request.ProductName.Trim();
+        var specificationName = request.SpecificationName.Trim();
+        var uploadedBy = request.UploadedBy.Trim();
+        var comment = request.Comment.Trim();
+
         if (string.IsNullOrWhiteSpace(productName))
         {
             return new SpecificationUploadResultDto
             {
                 Success = false,
                 Message = "Укажите наименование изделия."
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(specificationName))
+        {
+            return new SpecificationUploadResultDto
+            {
+                Success = false,
+                Message = "Укажите наименование спецификации."
             };
         }
 
@@ -125,24 +144,32 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
                 .Max() + 1;
 
             var version = request.Version <= 0 ? nextVersion : request.Version;
-            var specCode = BuildSpecificationCode(request.SpecType, productName, version);
+            var specCode = BuildSpecificationCode(request.SpecType, specificationName, version);
             var extension = Path.GetExtension(request.File.FileName);
             var safeFileName = $"{specCode}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{extension}";
             var destinationPath = Path.Combine(_filesDirectory, safeFileName);
 
             await using (var stream = File.Open(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                await request.File.CopyToAsync(stream, cancellationToken);
+                await using var fileStream = request.File.OpenReadStream();
+                await fileStream.CopyToAsync(stream, cancellationToken);
             }
 
             var record = new SpecificationRecordDto
             {
+                Id = Guid.NewGuid(),
                 ProductName = productName,
+                SpecificationName = specificationName,
                 SpecType = request.SpecType,
                 Version = version,
                 SpecificationCode = specCode,
                 OriginalFileName = request.File.FileName,
-                UploadedAtUtc = DateTimeOffset.UtcNow
+                UploadedBy = uploadedBy,
+                Comment = comment,
+                StoragePath = destinationPath,
+                UploadedAtUtc = DateTimeOffset.UtcNow,
+                OneCSyncStatus = OneCSyncStatus.Pending,
+                OneCSyncMessage = "Ожидает дублирования на сервер 1С."
             };
 
             db.Specifications.Add(record);
@@ -151,7 +178,7 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
             return new SpecificationUploadResultDto
             {
                 Success = true,
-                Message = "Спецификация успешно отправлена на сервер 1С.",
+                Message = "Спецификация сохранена на сервере программы. Дублирование на сервер 1С будет добавлено следующим этапом.",
                 CreatedSpecification = record
             };
         }
