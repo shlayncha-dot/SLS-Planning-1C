@@ -886,6 +886,7 @@
 }
 
 .kd-table {
+    --kd-row-height: 34px;
     width: 100%;
     min-width: 100%;
     border-collapse: collapse;
@@ -1116,8 +1117,14 @@
     padding-right: 0;
 }
 
-.kd-table tbody tr {
-    height: 40px;
+.kd-table tbody tr.kd-data-row {
+    height: var(--kd-row-height);
+}
+
+.kd-table tbody tr.kd-data-row td {
+    height: var(--kd-row-height);
+    padding-top: 6px;
+    padding-bottom: 6px;
 }
 
 .kd-virtual-spacer td {
