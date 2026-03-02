@@ -115,7 +115,14 @@ const getColumnKey = (header, index) => {
 
 const normalizeValue = (value) => String(value ?? '').trim();
 
+const parseSettingsList = (rawValue) => String(rawValue ?? '')
+    .split(/\r?\n|;|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const normalizeLabelForMatch = (label) => normalizeValue(label).toLowerCase().replace(/[\s._-]+/g, '');
+
+const normalizeCellForCompare = (value) => normalizeValue(value).toLowerCase();
 
 const isTypeLabel = (label) => {
     const normalized = normalizeLabelForMatch(label);
@@ -130,6 +137,11 @@ const isPositionLabel = (label) => {
 const getColumnKeyByLabel = (columns, predicate) => {
     const targetColumn = columns.find((column) => predicate(normalizeValue(column.label).toLowerCase()));
     return targetColumn?.key || null;
+};
+
+const findColumnByAliases = (columns, aliases) => {
+    const normalizedAliases = aliases.map((alias) => normalizeLabelForMatch(alias));
+    return columns.find((column) => normalizedAliases.includes(normalizeLabelForMatch(column.label))) || null;
 };
 
 const isAssemblyType = (typeValue) => normalizeValue(typeValue).toUpperCase().startsWith('СБ');
@@ -219,6 +231,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     const [namingReport, setNamingReport] = useState(null);
     const [namingLogs, setNamingLogs] = useState([]);
     const [isNamingLogOpen, setIsNamingLogOpen] = useState(false);
+    const [generalCheckReport, setGeneralCheckReport] = useState(null);
 
     const appendNamingLog = useCallback((message) => {
         const timestamp = new Date().toLocaleTimeString();
@@ -549,6 +562,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         setVerificationReport(null);
         setNamingIssuesByRowId({});
         setNamingReport(null);
+        setGeneralCheckReport(null);
     }, []);
 
     const handleExcelUpload = async (event) => {
@@ -780,16 +794,123 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         }
     }, [appendNamingLog, namingLogin, sortedRows, tableColumns]);
 
-    const runGeneralCheck = useCallback(async () => {
+    const runGeneralCheck = useCallback(() => {
         setGeneralCheckInProgress(true);
 
         try {
-            await runVerification();
-            await runNamingCheck();
+            const requiredColumns = parseSettingsList(specificationSettings.columns);
+            const coverageOptions = parseSettingsList(specificationSettings.coverage).map((item) => normalizeCellForCompare(item));
+            const primerOptions = parseSettingsList(specificationSettings.primer).map((item) => normalizeCellForCompare(item));
+
+            const availableColumns = tableColumns.map((column) => normalizeCellForCompare(column.label));
+            const missingColumns = requiredColumns.filter((columnName) => !availableColumns.includes(normalizeCellForCompare(columnName)));
+
+            const qtyColumn = findColumnByAliases(tableColumns, ['Кол', 'Количество']);
+            const typeColumn = findColumnByAliases(tableColumns, ['Тип']);
+            const thicknessColumn = findColumnByAliases(tableColumns, ['Толщина (мм)', 'Толщина']);
+            const materialColumn = findColumnByAliases(tableColumns, ['Материал']);
+            const materialEnColumn = findColumnByAliases(tableColumns, ['Материал EN', 'МатериалEN']);
+            const coverageColumn = findColumnByAliases(tableColumns, ['Покрытие']);
+            const paintSidesColumn = findColumnByAliases(tableColumns, ['Кол-во сторон покраски', 'Количество сторон покраски']);
+            const primerColumn = findColumnByAliases(tableColumns, ['Грунтовка']);
+
+            const issuesByType = {
+                '1) Проверка столбцов': [],
+                '2) Проверка количества': [],
+                '3) Проверка обязательных полей деталей': [],
+                '4) Проверка покрытие': [],
+                '5) Проверка кол-ва сторон покраски': [],
+                '6) Проверка грунтовки': []
+            };
+
+            if (missingColumns.length) {
+                issuesByType['1) Проверка столбцов'].push(`Не найдены обязательные столбцы: ${missingColumns.join(', ')}`);
+            }
+
+            if (!qtyColumn) {
+                issuesByType['2) Проверка количества'].push('Не найден столбец «Кол»/«Количество».');
+            }
+
+            const typesForRequiredFields = new Set(['деталь_св', 'деталь', 'деталь_кон']);
+            const uncoatedValue = normalizeCellForCompare('Без покрытия/Uncoated');
+
+            sortedRows.forEach((row) => {
+                const rowId = row.id;
+
+                if (qtyColumn) {
+                    const qtyValue = Number.parseFloat(String(row[qtyColumn.key] ?? '').replace(',', '.'));
+                    if (!Number.isFinite(qtyValue) || qtyValue <= 0) {
+                        issuesByType['2) Проверка количества'].push(`Строка ${rowId}: в столбце «${qtyColumn.label}» должно быть число больше 0.`);
+                    }
+                }
+
+                const typeValue = normalizeCellForCompare(typeColumn ? row[typeColumn.key] : '');
+                const requiresDetailFields = typesForRequiredFields.has(typeValue);
+
+                if (requiresDetailFields) {
+                    if (!thicknessColumn || !normalizeValue(row[thicknessColumn.key])) {
+                        issuesByType['3) Проверка обязательных полей деталей'].push(`Строка ${rowId}: для ТИП «${row[typeColumn.key]}» заполните «Толщина (мм)».`);
+                    }
+
+                    if (!materialColumn || !normalizeValue(row[materialColumn.key])) {
+                        issuesByType['3) Проверка обязательных полей деталей'].push(`Строка ${rowId}: для ТИП «${row[typeColumn.key]}» заполните «Материал».`);
+                    }
+
+                    if (!materialEnColumn || !normalizeValue(row[materialEnColumn.key])) {
+                        issuesByType['3) Проверка обязательных полей деталей'].push(`Строка ${rowId}: для ТИП «${row[typeColumn.key]}» заполните «Материал EN».`);
+                    }
+                }
+
+                if (coverageColumn && coverageOptions.length) {
+                    const coverageValue = normalizeCellForCompare(row[coverageColumn.key]);
+                    if (coverageValue && !coverageOptions.includes(coverageValue)) {
+                        issuesByType['4) Проверка покрытие'].push(`Строка ${rowId}: значение «${row[coverageColumn.key]}» отсутствует в настройках «Покрытие».`);
+                    }
+
+                    if (coverageValue && coverageValue !== uncoatedValue) {
+                        if (!paintSidesColumn) {
+                            issuesByType['5) Проверка кол-ва сторон покраски'].push('Не найден столбец «Кол-во сторон покраски».');
+                        } else {
+                            const sidesValue = normalizeValue(row[paintSidesColumn.key]);
+                            if (sidesValue !== '1' && sidesValue !== '2') {
+                                issuesByType['5) Проверка кол-ва сторон покраски'].push(`Строка ${rowId}: для покрытия «${row[coverageColumn.key]}» в «${paintSidesColumn.label}» должно быть 1 или 2.`);
+                            }
+                        }
+                    }
+                }
+
+                if (primerColumn && primerOptions.length) {
+                    const primerValue = normalizeCellForCompare(row[primerColumn.key]);
+                    if (primerValue && !primerOptions.includes(primerValue)) {
+                        issuesByType['6) Проверка грунтовки'].push(`Строка ${rowId}: значение «${row[primerColumn.key]}» отсутствует в настройках «Грунтовка».`);
+                    }
+                }
+            });
+
+            const blocks = Object.entries(issuesByType)
+                .map(([type, items]) => ({ type, items }))
+                .filter((block) => block.items.length > 0)
+                .map((block) => ({
+                    ...block,
+                    items: [...new Set(block.items)]
+                }));
+
+            if (!blocks.length) {
+                setGeneralCheckReport({
+                    isSuccess: true,
+                    blocks: []
+                });
+                return;
+            }
+
+            setGeneralCheckReport({
+                isSuccess: false,
+                blocks
+            });
         } finally {
             setGeneralCheckInProgress(false);
         }
-    }, [runNamingCheck, runVerification]);
+    }, [sortedRows, specificationSettings.columns, specificationSettings.coverage, specificationSettings.primer, tableColumns]);
 
     const namingTargetColumnKey = useMemo(() => {
         const nameColumn = tableColumns.find((column) => column.label.toLowerCase().includes('наимен'));
@@ -921,6 +1042,8 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
                     verificationIssuesByRowId={verificationIssuesByRowId}
                     verificationReport={verificationReport}
                     onCloseVerificationReport={() => setVerificationReport(null)}
+                    generalCheckReport={generalCheckReport}
+                    onCloseGeneralCheckReport={() => setGeneralCheckReport(null)}
                     designationTargetColumnKey={designationTargetColumnKey}
                 />
             </div>
