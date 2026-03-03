@@ -13,25 +13,9 @@ public interface INamingService
 
 public sealed class NamingService : INamingService
 {
-    private static readonly HttpClient HttpClient = CreateHttpClient();
-
     private readonly NamingApiOptions _options;
     private readonly INamingCredentialsStore _credentialsStore;
     private readonly ILogger<NamingService> _logger;
-
-    private static HttpClient CreateHttpClient()
-    {
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-
-        return new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-    }
 
     public NamingService(
         IOptions<NamingApiOptions> options,
@@ -111,6 +95,17 @@ public sealed class NamingService : INamingService
         string payloadJson,
         CancellationToken cancellationToken)
     {
+        var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback =
+                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
+
+        using var httpClient = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
         using var request = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
         {
             Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
@@ -122,24 +117,21 @@ public sealed class NamingService : INamingService
         if (credentials is not null)
         {
             var raw = $"{credentials.Value.Username}:{credentials.Value.Password}";
-            var encoded = Convert.ToBase64String(Encoding.ASCII.GetBytes(raw)); // ASCII для Basic
+            var encoded = Convert.ToBase64String(Encoding.ASCII.GetBytes(raw));
             request.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
         }
 
         try
         {
-            using var response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            // ЛОГИРУЕМ реальный ответ 1С (иначе ты всегда будешь видеть только "502")
-            _logger.LogInformation("Naming API status={StatusCode} body={Body}", (int)response.StatusCode, responseBody);
-
+            _logger.LogInformation("Naming API => {Status} {Body}", (int)response.StatusCode, responseBody);
             return (responseBody, response.StatusCode);
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "Naming API request failed. Url={Url}", _options.CheckUrl);
+            _logger.LogError(ex, "Naming API HTTP error");
             throw new NamingServiceException("Ошибка HTTP при обращении к сервису нейминга: " + ex.Message, HttpStatusCode.BadGateway, ex);
         }
     }
