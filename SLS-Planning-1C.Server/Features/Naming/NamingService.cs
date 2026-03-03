@@ -145,7 +145,7 @@ public sealed class NamingService : INamingService
                     return response;
                 }
 
-                using var handler = CreateHttpHandler(attempt.Protocol, attempt.IgnoreSslErrors, attempt.CheckCertificateRevocationList);
+                using var handler = CreateHttpHandler(attempt.Protocol, attempt.IgnoreSslErrors);
                 using var client = new HttpClient(handler, disposeHandler: true);
                 using var tlsRequest = BuildRequest(payloadJson, attempt.HttpVersion);
                 var tlsResponse = await client.SendAsync(tlsRequest, cancellationToken);
@@ -205,26 +205,22 @@ public sealed class NamingService : INamingService
             Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
         };
 
-        if (httpVersion is not null)
-        {
-            request.Version = httpVersion;
-            request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
-        }
+        request.Version = httpVersion ?? HttpVersion.Version11;
+        request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
 
         AddBasicAuthorizationHeaderIfConfigured(request);
         return request;
     }
 
-    private HttpClientHandler CreateHttpHandler(SslProtocols? protocol, bool ignoreSslErrors = false, bool checkCertificateRevocationList = true)
+    private HttpClientHandler CreateHttpHandler(SslProtocols? protocol, bool ignoreSslErrors = false)
     {
-        var handler = new HttpClientHandler();
-
-        if (protocol.HasValue)
+        var handler = new HttpClientHandler
         {
-            handler.SslProtocols = protocol.Value;
-        }
-
-        handler.CheckCertificateRevocationList = checkCertificateRevocationList;
+            SslProtocols = protocol ?? (SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls),
+            CheckCertificateRevocationList = false,
+            UseProxy = true,
+            Proxy = WebRequest.DefaultWebProxy
+        };
 
         if (_options.IgnoreSslErrors || ignoreSslErrors)
         {
