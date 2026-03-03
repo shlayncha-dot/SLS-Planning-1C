@@ -93,61 +93,69 @@ public sealed class NamingService : INamingService
     }
 
     private async Task<(string ResponseBody, HttpStatusCode StatusCode)> ExecuteHttpRequestAsync(
-        string payloadJson,
-        CancellationToken cancellationToken)
+    string payloadJson,
+    CancellationToken cancellationToken)
+{
+    // Максимально близко к Postman:
+    // - НЕ отключаем прокси (пусть берёт системные настройки)
+    // - НЕ фиксируем TLS вручную (пусть Windows/.NET выберет доступный)
+    // - SSL verification: OFF (как в Postman)
+    var handler = new HttpClientHandler
     {
-        var handler = new HttpClientHandler
-        {
-            UseProxy = true,
-            ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-            SslProtocols = SslProtocols.None
-        };
+        ServerCertificateCustomValidationCallback =
+            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        // НЕ трогаем UseProxy/Proxy
+        // НЕ трогаем SslProtocols
+    };
 
-        using var httpClient = new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
+    using var httpClient = new HttpClient(handler)
+    {
+        Timeout = TimeSpan.FromSeconds(30)
+    };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
-        {
-            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json"),
-            Version = HttpVersion.Version11,
-            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-        };
+    using var request = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
+    {
+        Content = new StringContent(payloadJson, Encoding.UTF8, "application/json"),
+        Version = HttpVersion.Version11,
+        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+    };
 
-        request.Headers.UserAgent.ParseAdd("PostmanRuntime/7.0");
+    request.Headers.UserAgent.ParseAdd("PostmanRuntime/7.0");
 
-        var credentials = ResolveCredentials();
-        if (credentials is not null)
-        {
-            var raw = $"{credentials.Value.Username}:{credentials.Value.Password}";
-            var encoded = Convert.ToBase64String(Encoding.ASCII.GetBytes(raw));
-            request.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
-        }
-
-        try
-        {
-            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            _logger.LogInformation("Naming API => {Status} {Body}", (int)response.StatusCode, responseBody);
-            return (responseBody, response.StatusCode);
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex,
-                "Naming API HTTP/SSL error. Message={Msg}; Inner={Inner}",
-                ex.Message,
-                ex.InnerException?.Message);
-
-            throw new NamingServiceException(
-                "Ошибка HTTP при обращении к сервису нейминга: " + ex.Message,
-                HttpStatusCode.BadGateway,
-                ex);
-        }
+    var credentials = ResolveCredentials();
+    if (credentials is not null)
+    {
+        var raw = $"{credentials.Value.Username}:{credentials.Value.Password}";
+        var encoded = Convert.ToBase64String(Encoding.ASCII.GetBytes(raw));
+        request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encoded);
     }
+
+    try
+    {
+        using var response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseContentRead,
+            cancellationToken);
+
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        _logger.LogInformation("Naming API => {Status} {Body}", (int)response.StatusCode, responseBody);
+        return (responseBody, response.StatusCode);
+    }
+    catch (HttpRequestException ex)
+    {
+        _logger.LogError(ex,
+            "Naming API HTTP/SSL error. Message={Msg}; Inner={Inner}",
+            ex.Message,
+            ex.InnerException?.Message);
+
+        throw new NamingServiceException(
+            "Ошибка HTTP при обращении к сервису нейминга: " + ex.Message,
+            HttpStatusCode.BadGateway,
+            ex);
+    }
+}
 
     private (string Username, string Password)? ResolveCredentials()
     {
