@@ -141,6 +141,8 @@ public sealed class NamingService : INamingService
 
                 if (attempt.Protocol is null && !attempt.IgnoreSslErrors)
                 {
+                    // HttpRequestMessage одноразовый: создаём новый экземпляр на каждую TLS/HTTP попытку.
+                    using var request = BuildRequest(payloadJson, attempt.HttpVersion);
                     var response = await _httpClient.SendAsync(request, cancellationToken);
                     _logger.LogInformation("Проверка нейминга: попытка {AttemptName} завершилась HTTP {StatusCode}.", attempt.Name, (int)response.StatusCode);
                     return response;
@@ -148,7 +150,8 @@ public sealed class NamingService : INamingService
 
                 using var handler = CreateHttpHandler(attempt.Protocol, attempt.IgnoreSslErrors, attempt.CheckCertificateRevocationList);
                 using var client = new HttpClient(handler, disposeHandler: true);
-                var tlsResponse = await client.SendAsync(request, cancellationToken);
+                using var tlsRequest = BuildRequest(payloadJson, attempt.HttpVersion);
+                var tlsResponse = await client.SendAsync(tlsRequest, cancellationToken);
                 _logger.LogInformation("Проверка нейминга: попытка {AttemptName} завершилась HTTP {StatusCode}.", attempt.Name, (int)tlsResponse.StatusCode);
                 return tlsResponse;
             }
