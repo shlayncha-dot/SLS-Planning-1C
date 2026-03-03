@@ -16,6 +16,13 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <Content Include="native\win-x64\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\sls-planning-1c.client\sls-planning-1c.client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

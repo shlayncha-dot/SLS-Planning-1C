@@ -1,8 +1,10 @@
+using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Security.Authentication;
+using CurlThin;
+using CurlThin.Enums;
+using CurlThin.SafeHandles;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,31 +17,32 @@ public interface INamingService
 
 public sealed class NamingService : INamingService
 {
-    private readonly HttpClient _httpClient;
+    private static readonly object CurlInitLock = new();
+    private static bool _curlInitialized;
+
     private readonly NamingApiOptions _options;
     private readonly INamingCredentialsStore _credentialsStore;
     private readonly ILogger<NamingService> _logger;
 
     public NamingService(
-        HttpClient httpClient,
         IOptions<NamingApiOptions> options,
         INamingCredentialsStore credentialsStore,
         ILogger<NamingService> logger)
     {
-        _httpClient = httpClient;
         _options = options.Value;
         _credentialsStore = credentialsStore;
         _logger = logger;
+
+        EnsureCurlInitialized();
     }
 
-    public async Task<NamingCheckResponse> CheckAsync(NamingCheckRequest request, CancellationToken cancellationToken)
+    public Task<NamingCheckResponse> CheckAsync(NamingCheckRequest request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (request.Items is null || request.Items.Count == 0)
         {
-            return new NamingCheckResponse
-            {
-                Results = []
-            };
+            return Task.FromResult(new NamingCheckResponse { Results = [] });
         }
 
         if (string.IsNullOrWhiteSpace(_options.CheckUrl))
@@ -49,266 +52,231 @@ public sealed class NamingService : INamingService
 
         var payload = request.Items.Select(item => new { name = item.Name }).ToList();
         var payloadJson = JsonSerializer.Serialize(payload);
-        var response = await SendWithTlsFallbackAsync(payloadJson, cancellationToken);
 
-        using (response)
+        var responseBody = ExecuteCurlRequest(payloadJson, cancellationToken, out var statusCode);
+
+        if (statusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            if (!response.IsSuccessStatusCode)
-            {
-                var isUnauthorized = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
-                var message = isUnauthorized
-                    ? "Внешний сервис нейминга отклонил запрос (401/403). Проверьте логин и пароль 1С в настройках сервера."
-                    : $"Сервис Нейминг вернул ошибку {(int)response.StatusCode}.";
+            throw new NamingServiceException(
+                "Внешний сервис нейминга отклонил запрос (401/403). Проверьте логин и пароль 1С в настройках сервера.",
+                HttpStatusCode.BadGateway);
+        }
 
-                throw new NamingServiceException(message, HttpStatusCode.BadGateway);
-            }
+        if ((int)statusCode < 200 || (int)statusCode >= 300)
+        {
+            throw new NamingServiceException($"Сервис Нейминг вернул ошибку {(int)statusCode}.", HttpStatusCode.BadGateway);
+        }
 
-            JsonDocument document;
-            try
-            {
-                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            }
-            catch (JsonException)
-            {
-                throw new NamingServiceException("Сервис Нейминг вернул ответ в неожиданном формате.", HttpStatusCode.BadGateway);
-            }
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(responseBody);
+        }
+        catch (JsonException)
+        {
+            throw new NamingServiceException("Сервис Нейминг вернул ответ в неожиданном формате.", HttpStatusCode.BadGateway);
+        }
 
-            using (document)
-            {
-                var statuses = ExtractStatuses(document.RootElement, request.Items.Count);
-                var results = request.Items
-                    .Select((item, index) =>
+        using (document)
+        {
+            var statuses = ExtractStatuses(document.RootElement, request.Items.Count);
+            var results = request.Items
+                .Select((item, index) =>
+                {
+                    var status = statuses.ElementAtOrDefault(index) ?? "Not found";
+                    var isFound = string.Equals(status, "Found", StringComparison.OrdinalIgnoreCase);
+
+                    return new NamingCheckResultItem
                     {
-                        var status = statuses.ElementAtOrDefault(index) ?? "Not found";
-                        var isFound = string.Equals(status, "Found", StringComparison.OrdinalIgnoreCase);
+                        RowId = item.RowId,
+                        Name = item.Name,
+                        Status = status,
+                        IsFound = isFound
+                    };
+                })
+                .ToList();
 
-                        return new NamingCheckResultItem
-                        {
-                            RowId = item.RowId,
-                            Name = item.Name,
-                            Status = status,
-                            IsFound = isFound
-                        };
-                    })
-                    .ToList();
-
-                return new NamingCheckResponse
-                {
-                    Results = results
-                };
-            }
+            return Task.FromResult(new NamingCheckResponse { Results = results });
         }
     }
 
-    private async Task<HttpResponseMessage> SendWithTlsFallbackAsync(string payloadJson, CancellationToken cancellationToken)
+    private string ExecuteCurlRequest(string payloadJson, CancellationToken cancellationToken, out HttpStatusCode statusCode)
     {
-        var allowInsecureFallback = _options.IgnoreSslErrors || IsLocalServerEnvironment();
-        var attempts = new List<HttpTlsAttempt>
+        using var easy = CurlNative.Easy.Init();
+        if (easy.IsInvalid)
         {
-            new("SystemDefault", null),
-            new("SystemDefault-HTTP1.1", null, HttpVersion: HttpVersion.Version11),
-            new("SystemDefault-NoProxy", null, UseProxy: false),
-            new("SystemDefault-HTTP1.1-NoProxy", null, HttpVersion: HttpVersion.Version11, UseProxy: false),
-            new("TLS1.3", SslProtocols.Tls13),
-            new("TLS1.2", SslProtocols.Tls12),
-            new("TLS1.2-NoProxy", SslProtocols.Tls12, UseProxy: false),
-            new("TLS1.2-NoRevocation", SslProtocols.Tls12, CheckCertificateRevocationList: false)
-        };
-
-#pragma warning disable SYSLIB0039
-        attempts.Add(new("TLS1.1", SslProtocols.Tls11));
-        attempts.Add(new("TLS1.0", SslProtocols.Tls));
-#pragma warning restore SYSLIB0039
-
-        if (allowInsecureFallback)
-        {
-            attempts.Add(new("SystemDefault-Insecure", null, IgnoreSslErrors: true));
-            attempts.Add(new("TLS1.2-Insecure", SslProtocols.Tls12, IgnoreSslErrors: true));
-            attempts.Add(new("TLS1.2-Insecure-NoProxy", SslProtocols.Tls12, IgnoreSslErrors: true, UseProxy: false));
+            throw new NamingServiceException("Не удалось инициализировать Curl.", HttpStatusCode.BadGateway);
         }
 
-        Exception? lastError = null;
+        using var headers = BuildHeaders();
+        var credentials = ResolveCredentials();
+        var responseBuffer = new List<byte>();
+        var callbackState = GCHandle.Alloc(responseBuffer);
 
-        _logger.LogInformation(
-            "Проверка нейминга: конфигурация вызова CheckUrl={CheckUrl}, Runtime={Runtime}, ProxyEnv={ProxyEnv}, IgnoreSslErrors={IgnoreSslErrors}.",
-            _options.CheckUrl,
-            System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
-            Environment.GetEnvironmentVariable("HTTPS_PROXY") ?? Environment.GetEnvironmentVariable("HTTP_PROXY") ?? "<empty>",
-            _options.IgnoreSslErrors);
-
-        foreach (var attempt in attempts)
+        try
         {
+            SetOptOrThrow(easy, CURLoption.URL, _options.CheckUrl);
+            SetOptOrThrow(easy, CURLoption.POST, 1L);
+            SetOptOrThrow(easy, CURLoption.POSTFIELDS, payloadJson);
+            SetOptOrThrow(easy, CURLoption.POSTFIELDSIZE, Encoding.UTF8.GetByteCount(payloadJson));
+            SetOptOrThrow(easy, CURLoption.HTTPHEADER, headers);
+            SetOptOrThrow(easy, CURLoption.USERAGENT, "curl/7.81.0");
+            SetOptOrThrow(easy, CURLoption.CONNECTTIMEOUT, 30L);
+            SetOptOrThrow(easy, CURLoption.TIMEOUT, 30L);
+            SetOptOrThrow(easy, CURLoption.SSL_VERIFYPEER, 0L);
+            SetOptOrThrow(easy, CURLoption.SSL_VERIFYHOST, 0L);
+
+            if (credentials is not null)
+            {
+                SetOptOrThrow(easy, CURLoption.HTTPAUTH, (long)CURLAUTH.CURLAUTH_BASIC);
+                SetOptOrThrow(easy, CURLoption.USERPWD, $"{credentials.Value.Username}:{credentials.Value.Password}");
+            }
+
+            SetOptOrThrow(easy, CURLoption.WRITEFUNCTION, WriteResponseBodyCallback);
+            SetOptOrThrow(easy, CURLoption.WRITEDATA, GCHandle.ToIntPtr(callbackState));
+
+            if (cancellationToken.CanBeCanceled)
+            {
+                SetOptOrThrow(easy, CURLoption.NOPROGRESS, 0L);
+                SetOptOrThrow(easy, CURLoption.XFERINFOFUNCTION, BuildProgressCallback(cancellationToken));
+            }
+
+            var performResult = CurlNative.Easy.Perform(easy);
+            if (performResult != CURLcode.CURLE_OK)
+            {
+                throw new NamingServiceException(
+                    $"Ошибка вызова внешнего API через Curl: {performResult}.",
+                    HttpStatusCode.BadGateway);
+            }
+
+            CurlNative.Easy.GetInfo(easy, CURLINFO.RESPONSE_CODE, out var httpStatusCodeLong);
+            statusCode = (HttpStatusCode)httpStatusCodeLong;
+            return Encoding.UTF8.GetString(responseBuffer.ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Проверка нейминга была отменена через CancellationToken.");
+            throw;
+        }
+        finally
+        {
+            callbackState.Free();
+        }
+    }
+
+    private static void EnsureCurlInitialized()
+    {
+        lock (CurlInitLock)
+        {
+            if (_curlInitialized)
+            {
+                return;
+            }
+
             try
             {
-                _logger.LogInformation(
-                    "Проверка нейминга: старт попытки {AttemptName} (Protocol: {Protocol}, HttpVersion: {HttpVersion}, UseProxy: {UseProxy}, CheckCRL: {CheckCRL}, Insecure: {Insecure}).",
-                    attempt.Name,
-                    attempt.Protocol?.ToString() ?? "SystemDefault",
-                    attempt.HttpVersion?.ToString() ?? "Default",
-                    attempt.UseProxy,
-                    attempt.CheckCertificateRevocationList,
-                    attempt.IgnoreSslErrors);
-
-                // Базовый HttpClient можно использовать только для "чистой" system-default попытки.
-                // Иначе (NoProxy/CRL override/Insecure) нужен отдельный handler.
-                var canUseSharedClient = attempt.Protocol is null
-                    && !attempt.IgnoreSslErrors
-                    && attempt.UseProxy
-                    && attempt.CheckCertificateRevocationList;
-
-                if (canUseSharedClient)
-                {
-                    using var request = BuildRequest(payloadJson, attempt.HttpVersion);
-                    var response = await _httpClient.SendAsync(request, cancellationToken);
-                    _logger.LogInformation("Проверка нейминга: попытка {AttemptName} завершилась HTTP {StatusCode}.", attempt.Name, (int)response.StatusCode);
-                    return response;
-                }
-
-                using var handler = CreateHttpHandler(attempt.Protocol, attempt.IgnoreSslErrors, attempt.CheckCertificateRevocationList, attempt.UseProxy);
-                using var client = new HttpClient(handler, disposeHandler: true);
-                using var tlsRequest = BuildRequest(payloadJson, attempt.HttpVersion);
-                using var tlsResponse = await client.SendAsync(tlsRequest, cancellationToken);
-                _logger.LogInformation("Проверка нейминга: попытка {AttemptName} завершилась HTTP {StatusCode}.", attempt.Name, (int)tlsResponse.StatusCode);
-                return await CloneResponseAsync(tlsResponse, cancellationToken);
+                CurlNative.Init();
+                _curlInitialized = true;
             }
-            catch (HttpRequestException ex)
+            catch (DllNotFoundException ex)
             {
-                lastError = ex;
-                _logger.LogWarning(ex,
-                    "Проверка нейминга: попытка {AttemptName} провалена (Protocol: {Protocol}, HttpVersion: {HttpVersion}, UseProxy: {UseProxy}, HResult: {HResult}, Error: {Error}).",
-                    attempt.Name,
-                    attempt.Protocol?.ToString() ?? "SystemDefault",
-                    attempt.HttpVersion?.ToString() ?? "Default",
-                    attempt.UseProxy,
-                    ex.HResult,
-                    ExtractErrorMessage(ex));
+                throw BuildNativeLibraryException(
+                    "Не найдены нативные библиотеки Curl/OpenSSL.",
+                    ex);
             }
-            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (BadImageFormatException ex)
             {
-                lastError = new TimeoutException($"Таймаут при попытке {attempt.Name}.");
-                _logger.LogWarning(
-                    "Проверка нейминга: попытка {AttemptName} завершилась таймаутом (Protocol: {Protocol}, HttpVersion: {HttpVersion}, UseProxy: {UseProxy}).",
-                    attempt.Name,
-                    attempt.Protocol?.ToString() ?? "SystemDefault",
-                    attempt.HttpVersion?.ToString() ?? "Default",
-                    attempt.UseProxy);
+                throw BuildNativeLibraryException(
+                    "Обнаружена несовместимая архитектура нативных библиотек Curl/OpenSSL (x86/x64).",
+                    ex);
             }
         }
-
-        throw new NamingServiceException($"Не удалось подключиться к сервису Нейминг: {ExtractErrorMessage(lastError)}", HttpStatusCode.BadGateway);
     }
 
-    private static async Task<HttpResponseMessage> CloneResponseAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    private static NamingServiceException BuildNativeLibraryException(string details, Exception innerException)
     {
-        var clone = new HttpResponseMessage(response.StatusCode)
-        {
-            ReasonPhrase = response.ReasonPhrase,
-            Version = response.Version,
-            RequestMessage = response.RequestMessage
-        };
+        const string message =
+            "Не удалось инициализировать CurlThin. " +
+            "Проверьте, что рядом с приложением лежат runtime DLL: libcurl*.dll, libssl*.dll, libcrypto*.dll и зависимости. " +
+            "Файлы *.a не подходят для запуска .NET-приложения. " +
+            "Рекомендуемая папка проекта: SLS-Planning-1C.Server/native/win-x64/.";
 
-        foreach (var header in response.Headers)
-        {
-            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
-        }
-
-        if (response.Content is not null)
-        {
-            var contentBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            var contentClone = new ByteArrayContent(contentBytes);
-
-            foreach (var header in response.Content.Headers)
-            {
-                contentClone.Headers.TryAddWithoutValidation(header.Key, header.Value);
-            }
-
-            clone.Content = contentClone;
-        }
-
-        return clone;
+        return new NamingServiceException($"{message} {details}", HttpStatusCode.BadGateway, innerException);
     }
 
-    private static string ExtractErrorMessage(Exception? error)
+    private static void SetOptOrThrow(SafeEasyHandle easy, CURLoption option, string value)
     {
-        if (error is null)
+        var code = CurlNative.Easy.SetOpt(easy, option, value);
+        if (code != CURLcode.CURLE_OK)
         {
-            return "неизвестная ошибка подключения.";
+            throw new NamingServiceException($"Ошибка настройки Curl опции {option}: {code}.", HttpStatusCode.BadGateway);
         }
-
-        var messages = new List<string>();
-        var current = error;
-
-        while (current is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(current.Message))
-            {
-                messages.Add(current.Message.Trim());
-            }
-
-            current = current.InnerException;
-        }
-
-        return messages.Count == 0
-            ? "неизвестная ошибка подключения."
-            : string.Join(" | ", messages.Distinct(StringComparer.Ordinal));
     }
 
-    private HttpRequestMessage BuildRequest(string payloadJson, Version? httpVersion = null)
+    private static void SetOptOrThrow(SafeEasyHandle easy, CURLoption option, long value)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, _options.CheckUrl)
+        var code = CurlNative.Easy.SetOpt(easy, option, value);
+        if (code != CURLcode.CURLE_OK)
         {
-            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
-        };
-
-        request.Version = httpVersion ?? HttpVersion.Version11;
-        request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
-
-        AddBasicAuthorizationHeaderIfConfigured(request);
-        return request;
+            throw new NamingServiceException($"Ошибка настройки Curl опции {option}: {code}.", HttpStatusCode.BadGateway);
+        }
     }
 
-    private HttpClientHandler CreateHttpHandler(
-        SslProtocols? protocol,
-        bool ignoreSslErrors = false,
-        bool checkCertificateRevocationList = true,
-        bool useProxy = true)
+    private static void SetOptOrThrow(SafeEasyHandle easy, CURLoption option, SafeSlistHandle value)
     {
-        var handler = new HttpClientHandler
+        var code = CurlNative.Easy.SetOpt(easy, option, value);
+        if (code != CURLcode.CURLE_OK)
         {
-            SslProtocols = protocol ?? SslProtocols.None,
-            CheckCertificateRevocationList = checkCertificateRevocationList,
-            UseProxy = useProxy,
-            Proxy = useProxy ? WebRequest.DefaultWebProxy : null,
-            DefaultProxyCredentials = CredentialCache.DefaultCredentials
-        };
+            throw new NamingServiceException($"Ошибка настройки Curl опции {option}: {code}.", HttpStatusCode.BadGateway);
+        }
+    }
 
-        if (_options.IgnoreSslErrors || ignoreSslErrors)
+    private static void SetOptOrThrow(SafeEasyHandle easy, CURLoption option, CurlNative.Callbacks.WriteCallback value)
+    {
+        var code = CurlNative.Easy.SetOpt(easy, option, value);
+        if (code != CURLcode.CURLE_OK)
         {
-            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+            throw new NamingServiceException($"Ошибка настройки Curl опции {option}: {code}.", HttpStatusCode.BadGateway);
+        }
+    }
+
+    private static void SetOptOrThrow(SafeEasyHandle easy, CURLoption option, CurlNative.Callbacks.XferInfoCallback value)
+    {
+        var code = CurlNative.Easy.SetOpt(easy, option, value);
+        if (code != CURLcode.CURLE_OK)
+        {
+            throw new NamingServiceException($"Ошибка настройки Curl опции {option}: {code}.", HttpStatusCode.BadGateway);
+        }
+    }
+
+    private static SafeSlistHandle BuildHeaders()
+    {
+        var headers = CurlNative.Slist.Append(SafeSlistHandle.Null, "Content-Type: application/json");
+        headers = CurlNative.Slist.Append(headers, "User-Agent: curl/7.81.0");
+        return headers;
+    }
+
+    private static nuint WriteResponseBodyCallback(IntPtr buffer, nuint size, nuint nItems, IntPtr userData)
+    {
+        var total = checked((int)(size * nItems));
+        if (total <= 0)
+        {
+            return 0;
         }
 
-        return handler;
+        var state = GCHandle.FromIntPtr(userData);
+        var target = (List<byte>)state.Target!;
+
+        var chunk = new byte[total];
+        Marshal.Copy(buffer, chunk, 0, total);
+        target.AddRange(chunk);
+
+        return (nuint)total;
     }
 
-    private static bool IsLocalServerEnvironment()
+    private static CurlNative.Callbacks.XferInfoCallback BuildProgressCallback(CancellationToken cancellationToken)
     {
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-        return string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(environment, "Local", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void AddBasicAuthorizationHeaderIfConfigured(HttpRequestMessage request)
-    {
-        var credentials = ResolveCredentials();
-        if (credentials is null)
-        {
-            return;
-        }
-
-        var rawCredentials = $"{credentials.Value.Username}:{credentials.Value.Password}";
-        var encodedCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(rawCredentials));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", encodedCredentials);
+        return (_, _, _, _, _) => cancellationToken.IsCancellationRequested ? 1 : 0;
     }
 
     private (string Username, string Password)? ResolveCredentials()
@@ -371,18 +339,16 @@ public sealed class NamingService : INamingService
     }
 }
 
-public sealed record HttpTlsAttempt(
-    string Name,
-    SslProtocols? Protocol,
-    bool IgnoreSslErrors = false,
-    bool CheckCertificateRevocationList = true,
-    bool UseProxy = true,
-    Version? HttpVersion = null);
-
 public sealed class NamingServiceException : Exception
 {
     public NamingServiceException(string message, HttpStatusCode statusCode)
         : base(message)
+    {
+        StatusCode = statusCode;
+    }
+
+    public NamingServiceException(string message, HttpStatusCode statusCode, Exception innerException)
+        : base(message, innerException)
     {
         StatusCode = statusCode;
     }
