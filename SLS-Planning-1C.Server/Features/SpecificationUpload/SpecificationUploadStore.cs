@@ -5,7 +5,7 @@ namespace SLS_Planning_1C.Server.Features.SpecificationUpload;
 public interface ISpecificationUploadStore
 {
     Task<IReadOnlyList<string>> GetProductNamesAsync(CancellationToken cancellationToken);
-    Task<IReadOnlyList<SpecificationRecordDto>> GetSpecificationsByProductAsync(string productName, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SpecificationRecordDto>> GetSpecificationsAsync(string? productName, CancellationToken cancellationToken);
     Task<int> GetNextVersionAsync(string productName, SpecificationType specType, CancellationToken cancellationToken);
     Task<SpecificationUploadResultDto> UploadAsync(SpecificationUploadRequest request, CancellationToken cancellationToken);
 }
@@ -58,16 +58,22 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
         }
     }
 
-    public async Task<IReadOnlyList<SpecificationRecordDto>> GetSpecificationsByProductAsync(string productName, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SpecificationRecordDto>> GetSpecificationsAsync(string? productName, CancellationToken cancellationToken)
     {
-        var normalizedProductName = productName.Trim();
+        var normalizedProductName = productName?.Trim();
 
         await _semaphore.WaitAsync(cancellationToken);
         try
         {
             var db = await ReadUnsafeAsync(cancellationToken);
-            return db.Specifications
-                .Where(row => string.Equals(row.ProductName, normalizedProductName, StringComparison.OrdinalIgnoreCase))
+            var query = db.Specifications.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(normalizedProductName))
+            {
+                query = query.Where(row => string.Equals(row.ProductName, normalizedProductName, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query
                 .OrderByDescending(row => row.UploadedAtUtc)
                 .ToList();
         }

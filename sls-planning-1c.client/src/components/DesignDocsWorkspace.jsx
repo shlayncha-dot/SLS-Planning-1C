@@ -212,7 +212,6 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     const [selectedSpecType, setSelectedSpecType] = useState('Basic');
     const [selectedUploadFile, setSelectedUploadFile] = useState(null);
     const [productList, setProductList] = useState([]);
-    const [selectedListProduct, setSelectedListProduct] = useState('');
     const [specificationHistory, setSpecificationHistory] = useState([]);
     const [isSpecificationHistoryLoading, setIsSpecificationHistoryLoading] = useState(false);
     const [specificationHistoryError, setSpecificationHistoryError] = useState('');
@@ -314,9 +313,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     }, [loadProductNames]);
 
     useEffect(() => {
-        if (!selectedListProduct) {
-            setSpecificationHistory([]);
-            setSpecificationHistoryError('');
+        if (activeSubItem !== 1) {
             return;
         }
 
@@ -327,8 +324,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
             setSpecificationHistoryError('');
 
             try {
-                const query = encodeURIComponent(selectedListProduct);
-                const response = await fetch(`${specificationUploadApi.specifications}?productName=${query}`, { signal: controller.signal });
+                const response = await fetch(specificationUploadApi.specifications, { signal: controller.signal });
 
                 if (!response.ok) {
                     throw new Error('Не удалось загрузить список спецификаций.');
@@ -355,7 +351,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         return () => {
             controller.abort();
         };
-    }, [selectedListProduct]);
+    }, [activeSubItem]);
 
     useEffect(() => {
         const normalizedProductName = (productName.trim() || specificationName.trim());
@@ -1078,9 +1074,6 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
 
             <div className={`design-docs-subview ${activeSubItem === 1 ? 'active' : ''}`}>
                 <SpecificationListView
-                    products={productList}
-                    selectedProduct={selectedListProduct}
-                    onSelectedProductChange={setSelectedListProduct}
                     specifications={specificationHistory}
                     isLoading={isSpecificationHistoryLoading}
                     loadError={specificationHistoryError}
