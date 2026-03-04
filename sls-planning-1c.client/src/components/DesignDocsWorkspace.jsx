@@ -358,7 +358,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     }, [selectedListProduct]);
 
     useEffect(() => {
-        const normalizedProductName = productName.trim();
+        const normalizedProductName = (productName.trim() || specificationName.trim());
 
         if (!normalizedProductName) {
             setSpecVersion(1);
@@ -388,7 +388,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         });
 
         return () => controller.abort();
-    }, [productName, selectedSpecType]);
+    }, [productName, selectedSpecType, specificationName]);
 
     const handleSpecFileChange = useCallback((file) => {
         setSelectedUploadFile(file);
@@ -399,12 +399,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     }, []);
 
     const handleSaveSpecification = useCallback(async () => {
-        const normalizedProductName = productName.trim();
-
-        if (!normalizedProductName) {
-            alert('Укажите наименование изделия.');
-            return;
-        }
+        const normalizedProductName = (productName.trim() || specificationName.trim());
 
         if (!specificationName.trim()) {
             alert('Укажите наименование спецификации.');
@@ -1060,9 +1055,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         <>
             <div className={`design-docs-subview ${activeSubItem === 0 ? 'active' : ''}`}>
                 <SpecificationUploadView
-                    productName={productName}
                     specificationName={specificationName}
-                    onProductNameChange={setProductName}
                     onSpecificationNameChange={setSpecificationName}
                     selectedSpecType={selectedSpecType}
                     onSpecTypeChange={setSelectedSpecType}
