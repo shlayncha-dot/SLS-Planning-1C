@@ -2675,13 +2675,27 @@
 }
 
 
-.spec-list-page {
-    overflow: hidden;
+.spec-list-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.45);
+    padding: 24px;
 }
 
-.spec-list-card {
-    flex: 1;
-    min-height: 0;
+.spec-list-dialog {
+    width: min(980px, 100%);
+    max-height: min(780px, calc(100vh - 48px));
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .spec-list-search-field {
@@ -2707,7 +2721,7 @@
 .spec-list-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 1200px;
+    min-width: 680px;
     border: 1px dashed #5f6368;
 }
 

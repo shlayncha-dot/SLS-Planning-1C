@@ -14,15 +14,31 @@ const formatDateTime = (value) => {
     return date.toLocaleString('ru-RU');
 };
 
+
+const specTypeLabels = {
+    0: 'Basic',
+    1: 'Wire',
+    2: 'Packaging',
+    3: 'Tech',
+    basic: 'Basic',
+    wire: 'Wire',
+    packaging: 'Packaging',
+    tech: 'Tech'
+};
+
+const formatSpecType = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    const key = String(value).toLowerCase();
+    return specTypeLabels[key] || String(value);
+};
+
 const getSearchableValue = (specification) => [
     specification.specificationName,
     specification.specType,
-    specification.specificationCode,
-    specification.originalFileName,
-    specification.uploadedBy,
-    specification.comment,
-    specification.uploadedAtUtc,
-    specification.oneCSyncStatus,
+    specification.uploadedAtUtc
 ]
     .map((value) => String(value ?? '').toLowerCase())
     .join(' ');
@@ -45,8 +61,8 @@ const SpecificationListView = ({
     }, [normalizedSearch, specifications]);
 
     return (
-        <section className="design-docs-page spec-list-page">
-            <article className="spec-card spec-list-card">
+        <section className="spec-list-dialog-overlay" role="dialog" aria-modal="true" aria-label="Список спецификаций">
+            <article className="spec-list-dialog">
                 <h2>Список спецификаций</h2>
 
                 <label className="field-group spec-list-search-field">
@@ -55,7 +71,7 @@ const SpecificationListView = ({
                         type="search"
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
-                        placeholder="Поиск по всем колонкам"
+                        placeholder="Поиск по наименованию, типу и дате"
                     />
                 </label>
 
@@ -67,34 +83,24 @@ const SpecificationListView = ({
                             <tr>
                                 <th>Наименование спецификации</th>
                                 <th>Тип спецификации</th>
-                                <th>Код спецификации</th>
-                                <th>Имя файла</th>
-                                <th>Загрузил</th>
-                                <th>Комментарий</th>
-                                <th>Дата загрузки (UTC)</th>
-                                <th>Статус синхронизации 1C</th>
+                                <th>Дата загрузки</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={8}>Загрузка...</td>
+                                    <td colSpan={3}>Загрузка...</td>
                                 </tr>
                             ) : filteredSpecifications.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8}>{normalizedSearch ? 'Поиск не дал результатов.' : 'Список спецификаций пуст.'}</td>
+                                    <td colSpan={3}>{normalizedSearch ? 'Поиск не дал результатов.' : 'Пока нет спецификаций.'}</td>
                                 </tr>
                             ) : (
                                 filteredSpecifications.map((specification) => (
                                     <tr key={specification.id}>
                                         <td>{specification.specificationName || '—'}</td>
-                                        <td>{specification.specType || '—'}</td>
-                                        <td>{specification.specificationCode || '—'}</td>
-                                        <td>{specification.originalFileName || '—'}</td>
-                                        <td>{specification.uploadedBy || '—'}</td>
-                                        <td>{specification.comment || '—'}</td>
+                                        <td>{formatSpecType(specification.specType)}</td>
                                         <td>{formatDateTime(specification.uploadedAtUtc)}</td>
-                                        <td>{specification.oneCSyncStatus || '—'}</td>
                                     </tr>
                                 ))
                             )}

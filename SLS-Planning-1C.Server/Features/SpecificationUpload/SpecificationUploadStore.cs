@@ -6,6 +6,7 @@ public interface ISpecificationUploadStore
 {
     Task<IReadOnlyList<string>> GetProductNamesAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<SpecificationRecordDto>> GetSpecificationsAsync(string? productName, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SpecificationSummaryDto>> GetSpecificationSummariesAsync(CancellationToken cancellationToken);
     Task<SpecificationRecordDto?> GetSpecificationByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<int> GetNextVersionAsync(string productName, SpecificationType specType, CancellationToken cancellationToken);
     Task<SpecificationUploadResultDto> UploadAsync(SpecificationUploadRequest request, CancellationToken cancellationToken);
@@ -76,6 +77,29 @@ public sealed class SpecificationUploadStore : ISpecificationUploadStore
 
             return query
                 .OrderByDescending(row => row.UploadedAtUtc)
+                .ToList();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<SpecificationSummaryDto>> GetSpecificationSummariesAsync(CancellationToken cancellationToken)
+    {
+        await _semaphore.WaitAsync(cancellationToken);
+        try
+        {
+            var db = await ReadUnsafeAsync(cancellationToken);
+            return db.Specifications
+                .OrderByDescending(row => row.UploadedAtUtc)
+                .Select(row => new SpecificationSummaryDto
+                {
+                    Id = row.Id,
+                    SpecificationName = row.SpecificationName,
+                    SpecType = row.SpecType,
+                    UploadedAtUtc = row.UploadedAtUtc
+                })
                 .ToList();
         }
         finally
