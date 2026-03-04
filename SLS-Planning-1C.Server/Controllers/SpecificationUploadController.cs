@@ -25,14 +25,9 @@ public sealed class SpecificationUploadController : ControllerBase
     }
 
     [HttpGet("specifications")]
-    public async Task<ActionResult<IReadOnlyList<SpecificationRecordDto>>> GetSpecifications([FromQuery] string productName, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<SpecificationRecordDto>>> GetSpecifications([FromQuery] string? productName, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(productName))
-        {
-            return Ok(Array.Empty<SpecificationRecordDto>());
-        }
-
-        var specifications = await _store.GetSpecificationsByProductAsync(productName, cancellationToken);
+        var specifications = await _store.GetSpecificationsAsync(productName, cancellationToken);
         return Ok(specifications);
     }
 

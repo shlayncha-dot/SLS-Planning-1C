@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 
 const formatDateTime = (value) => {
     if (!value) {
@@ -14,75 +14,108 @@ const formatDateTime = (value) => {
     return date.toLocaleString('ru-RU');
 };
 
+const getSearchableValue = (specification) => [
+    specification.productName,
+    specification.specificationName,
+    specification.specType,
+    specification.version,
+    specification.specificationCode,
+    specification.originalFileName,
+    specification.uploadedBy,
+    specification.comment,
+    specification.storagePath,
+    specification.uploadedAtUtc,
+    specification.oneCSyncStatus,
+    specification.oneCSyncMessage,
+    specification.id
+]
+    .map((value) => String(value ?? '').toLowerCase())
+    .join(' ');
+
 const SpecificationListView = ({
-    products,
-    selectedProduct,
-    onSelectedProductChange,
     specifications,
     isLoading,
     loadError
 }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    const filteredSpecifications = useMemo(() => {
+        if (!normalizedSearch) {
+            return specifications;
+        }
+
+        return specifications.filter((specification) => getSearchableValue(specification).includes(normalizedSearch));
+    }, [normalizedSearch, specifications]);
+
     return (
-        <section className="design-docs-page">
-            <article className="spec-card">
+        <section className="design-docs-page spec-list-page">
+            <article className="spec-card spec-list-card">
                 <h2>Список спецификаций</h2>
 
-                <label className="field-group spec-product-field">
-                    Наименование изделия
-                    <select value={selectedProduct} onChange={(event) => onSelectedProductChange(event.target.value)}>
-                        <option value="">Выберите изделие</option>
-                        {products.map((productName) => (
-                            <option key={productName} value={productName}>
-                                {productName}
-                            </option>
-                        ))}
-                    </select>
+                <label className="field-group spec-list-search-field">
+                    Поиск по таблице
+                    <input
+                        type="search"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Поиск по всем колонкам"
+                    />
                 </label>
-
-                {!selectedProduct ? (
-                    <p className="spec-empty-state">Выберите изделие, чтобы увидеть версии спецификаций.</p>
-                ) : null}
 
                 {loadError ? <p className="spec-list-error">{loadError}</p> : null}
 
-                {selectedProduct ? (
-                    <div className="spec-list-table-wrap">
-                        <table className="spec-list-table">
-                            <thead>
+                <div className="spec-list-table-wrap">
+                    <table className="spec-list-table">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Наименование изделия</th>
+                                <th>Наименование спецификации</th>
+                                <th>Тип спецификации</th>
+                                <th>Версия</th>
+                                <th>Код спецификации</th>
+                                <th>Имя файла</th>
+                                <th>Загрузил</th>
+                                <th>Комментарий</th>
+                                <th>Путь хранения</th>
+                                <th>Дата загрузки (UTC)</th>
+                                <th>Статус синхронизации 1C</th>
+                                <th>Сообщение синхронизации</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isLoading ? (
                                 <tr>
-                                    <th>Код</th>
-                                    <th>Наименование</th>
-                                    <th>Тип</th>
-                                    <th>Версия</th>
-                                    <th>Комментарий</th>
-                                    <th>Дата загрузки</th>
+                                    <td colSpan={13}>Загрузка...</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {isLoading ? (
-                                    <tr>
-                                        <td colSpan={6}>Загрузка...</td>
+                            ) : filteredSpecifications.length === 0 ? (
+                                <tr>
+                                    <td colSpan={13}>{normalizedSearch ? 'Поиск не дал результатов.' : 'Список спецификаций пуст.'}</td>
+                                </tr>
+                            ) : (
+                                filteredSpecifications.map((specification) => (
+                                    <tr key={specification.id}>
+                                        <td>{specification.id || '—'}</td>
+                                        <td>{specification.productName || '—'}</td>
+                                        <td>{specification.specificationName || '—'}</td>
+                                        <td>{specification.specType || '—'}</td>
+                                        <td>{specification.version ?? '—'}</td>
+                                        <td>{specification.specificationCode || '—'}</td>
+                                        <td>{specification.originalFileName || '—'}</td>
+                                        <td>{specification.uploadedBy || '—'}</td>
+                                        <td>{specification.comment || '—'}</td>
+                                        <td>{specification.storagePath || '—'}</td>
+                                        <td>{formatDateTime(specification.uploadedAtUtc)}</td>
+                                        <td>{specification.oneCSyncStatus || '—'}</td>
+                                        <td>{specification.oneCSyncMessage || '—'}</td>
                                     </tr>
-                                ) : specifications.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6}>По выбранному изделию спецификации не найдены.</td>
-                                    </tr>
-                                ) : (
-                                    specifications.map((specification) => (
-                                        <tr key={specification.id}>
-                                            <td>{specification.specificationCode || '—'}</td>
-                                            <td>{specification.specificationName || '—'}</td>
-                                            <td>{specification.specType || '—'}</td>
-                                            <td>{specification.version ?? '—'}</td>
-                                            <td>{specification.comment || '—'}</td>
-                                            <td>{formatDateTime(specification.createdAt)}</td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : null}
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </article>
         </section>
     );

@@ -2615,6 +2615,20 @@
     }
 }
 
+
+.spec-list-page {
+    overflow: hidden;
+}
+
+.spec-list-card {
+    flex: 1;
+    min-height: 0;
+}
+
+.spec-list-search-field {
+    max-width: 420px;
+}
+
 .spec-list-error {
     margin: 10px 0 0;
     color: #c62828;
@@ -2626,13 +2640,15 @@
     border: 1px solid #ececec;
     border-radius: 10px;
     overflow: auto;
-    max-height: 480px;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
 }
 
 .spec-list-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 860px;
+    min-width: 1700px;
 }
 
 .spec-list-table th,
