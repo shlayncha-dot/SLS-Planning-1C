@@ -30,6 +30,14 @@ public sealed class SpecificationRecordDto
     public string OneCSyncMessage { get; set; } = string.Empty;
 }
 
+public sealed class SpecificationSummaryDto
+{
+    public Guid Id { get; set; }
+    public string SpecificationName { get; set; } = string.Empty;
+    public SpecificationType SpecType { get; set; }
+    public DateTimeOffset UploadedAtUtc { get; set; }
+}
+
 public sealed class SpecificationUploadRequest
 {
     public string ProductName { get; set; } = string.Empty;

@@ -8,7 +8,7 @@ export const verificationApi = {
 
 export const specificationUploadApi = {
     products: '/api/specification-upload/products',
-    specifications: '/api/specification-upload/specifications',
+    specifications: '/api/specification-upload/specifications/summary',
     nextVersion: '/api/specification-upload/next-version',
     upload: '/api/specification-upload/upload'
 };

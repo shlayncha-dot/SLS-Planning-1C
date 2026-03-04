@@ -32,6 +32,13 @@ public sealed class SpecificationUploadController : ControllerBase
         return Ok(specifications);
     }
 
+    [HttpGet("specifications/summary")]
+    public async Task<ActionResult<IReadOnlyList<SpecificationSummaryDto>>> GetSpecificationSummaries(CancellationToken cancellationToken)
+    {
+        var specifications = await _store.GetSpecificationSummariesAsync(cancellationToken);
+        return Ok(specifications);
+    }
+
     [HttpGet("specifications/{id:guid}/file")]
     public async Task<IActionResult> DownloadSpecificationFile(Guid id, CancellationToken cancellationToken)
     {
