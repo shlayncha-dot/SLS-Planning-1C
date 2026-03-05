@@ -1,9 +1,7 @@
 @echo off
 setlocal
 
-set "SERVER_URL=%~1"
-if "%SERVER_URL%"=="" set "SERVER_URL=http://localhost:5000"
-
+set "SERVER_URL=https://sls-planning.omnic.pro"
 set "TEST_ENDPOINT=%SERVER_URL%/api/file-index/test"
 set "PAYLOAD_FILE=%TEMP%\sls_test_index_payload.json"
 
