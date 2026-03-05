@@ -392,12 +392,33 @@ while ($true) {
       } |
       Where-Object { $null -ne $_ })
 
+    $wireFiles = @()
+    $invalidPayloadEntries = 0
+    foreach ($file in $files) {
+      $wireEntry = Convert-ToWireFileEntry -Entry $file
+      if ($wireEntry) {
+        $wireFiles += ,$wireEntry
+      }
+      else {
+        $invalidPayloadEntries++
+      }
+    }
+
     Write-Host "[$(Get-Date -Format o)] Files discovered: $($files.Count)"
     if ($invalidEntries -gt 0) {
       Write-Host "[$(Get-Date -Format o)] Warning: skipped invalid file entries: $invalidEntries"
     }
+    if ($invalidPayloadEntries -gt 0) {
+      Write-Host "[$(Get-Date -Format o)] Warning: skipped invalid payload entries: $invalidPayloadEntries"
+    }
 
-    $snapshotHash = Get-SnapshotHash -Files $files
+    if ($files.Count -gt 0 -and $wireFiles.Count -eq 0) {
+      Write-Host "[$(Get-Date -Format o)] Warning: all indexed files were filtered from payload. Sleeping for $scanIntervalSeconds sec."
+      Start-Sleep -Seconds $scanIntervalSeconds
+      continue
+    }
+
+    $snapshotHash = Get-SnapshotHash -Files $wireFiles
 
     if ($snapshotHash -eq $lastHash) {
       Write-Host "[$(Get-Date -Format o)] No changes detected. Sleeping for $scanIntervalSeconds sec."
@@ -412,7 +433,7 @@ while ($true) {
       Files = @()
     }
 
-    $batches = Split-FileBatches -Files $files -PayloadTemplate $payloadTemplate -MaxPayloadBytes $maxPayloadBytes
+    $batches = Split-FileBatches -Files $wireFiles -PayloadTemplate $payloadTemplate -MaxPayloadBytes $maxPayloadBytes
     $totalChunks = $batches.Count
     $syncedChunks = 0
 
@@ -420,26 +441,8 @@ while ($true) {
 
     for ($i = 0; $i -lt $totalChunks; $i++) {
       $payload = $payloadTemplate.Clone()
-      $batchFiles = @($batches[$i])
-      $wireFiles = @()
-
-      foreach ($batchFile in $batchFiles) {
-        $wireEntry = Convert-ToWireFileEntry -Entry $batchFile
-        if ($wireEntry) {
-          $wireFiles += ,$wireEntry
-        }
-      }
-
-      if ($wireFiles.Count -eq 0) {
-        Write-Host "[$(Get-Date -Format o)] Warning: skipped chunk $($i + 1)/$totalChunks because all entries are invalid for JSON payload."
-        continue
-      }
-
-      if ($wireFiles.Count -lt $batchFiles.Count) {
-        Write-Host "[$(Get-Date -Format o)] Warning: sanitized chunk $($i + 1)/$totalChunks. Removed $($batchFiles.Count - $wireFiles.Count) invalid file entr(y/ies)."
-      }
-
-      $payload.Files = $wireFiles
+      $chunkFiles = @($batches[$i])
+      $payload.Files = $chunkFiles
 
       if ($totalChunks -gt 1) {
         $payload.ChunkIndex = $i + 1
@@ -448,12 +451,12 @@ while ($true) {
 
       $json = $payload | ConvertTo-Json -Depth 6 -Compress
       Invoke-SyncRequest -Uri $syncUrl -Headers $headers -Body $json -TimeoutSec $requestTimeoutSeconds -RetryCount $retryCount -RetryDelaySeconds $retryDelaySeconds -DisableKeepAlive $disableKeepAlive
-      Write-Host "[$(Get-Date -Format o)] Synced chunk $($i + 1)/$totalChunks, files: $($wireFiles.Count)"
+      Write-Host "[$(Get-Date -Format o)] Synced chunk $($i + 1)/$totalChunks, files: $($chunkFiles.Count)"
       $syncedChunks++
     }
 
-    if ($syncedChunks -eq 0 -and $files.Count -gt 0) {
-      Write-Host "[$(Get-Date -Format o)] Warning: no chunks were synced because all files were filtered as invalid payload entries."
+    if ($syncedChunks -lt $totalChunks) {
+      Write-Host "[$(Get-Date -Format o)] Warning: synced only $syncedChunks of $totalChunks chunks. Snapshot hash will not be persisted, retry on next cycle."
       Start-Sleep -Seconds $scanIntervalSeconds
       continue
     }
