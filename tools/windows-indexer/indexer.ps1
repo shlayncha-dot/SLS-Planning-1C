@@ -288,7 +288,7 @@ while ($true) {
   try {
     Write-Host "[$(Get-Date -Format o)] Scan started..."
 
-    $files = Get-ChildItem -LiteralPath $scanRoot -File -Recurse -ErrorAction SilentlyContinue |
+    $files = @(Get-ChildItem -LiteralPath $scanRoot -File -Recurse -ErrorAction SilentlyContinue |
       ForEach-Object {
         [pscustomobject]@{
           FileName = $_.Name
@@ -297,7 +297,7 @@ while ($true) {
           LastWriteTimeUtc = $_.LastWriteTimeUtc.ToString("o")
           SizeBytes = [int64]$_.Length
         }
-      }
+      })
 
     Write-Host "[$(Get-Date -Format o)] Files discovered: $($files.Count)"
 
