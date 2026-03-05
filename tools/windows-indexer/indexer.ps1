@@ -238,6 +238,9 @@ $statePath = Join-Path $scriptDir ".indexer-state.json"
 $scanRoot = if ([System.IO.Path]::IsPathRooted([string]$config.scanRoot)) { [string]$config.scanRoot } else { Join-Path $scriptDir ([string]$config.scanRoot) }
 $scanRoot = (Resolve-Path $scanRoot).Path
 
+$excludedPaths = @{}
+$excludedPaths[$statePath.ToLowerInvariant()] = $true
+
 $serverUrl = ([string]$config.serverUrl).TrimEnd('/')
 $syncEndpoint = if ([string]$config.syncEndpoint -like '/*') { [string]$config.syncEndpoint } else { "/$($config.syncEndpoint)" }
 $syncUrl = "$serverUrl$syncEndpoint"
@@ -277,6 +280,7 @@ Write-Host "Retry count: $retryCount"
 Write-Host "Retry delay: $retryDelaySeconds sec"
 Write-Host "Disable keep-alive: $disableKeepAlive"
 Write-Host "State file: $statePath"
+Write-Host "Excluded files from scan: $($excludedPaths.Keys.Count)"
 
 $lastHash = Read-IndexerState -StatePath $statePath
 
@@ -289,6 +293,10 @@ while ($true) {
     Write-Host "[$(Get-Date -Format o)] Scan started..."
 
     $files = @(Get-ChildItem -LiteralPath $scanRoot -File -Recurse -ErrorAction SilentlyContinue |
+      Where-Object {
+        $fullPath = $_.FullName.ToLowerInvariant()
+        -not $excludedPaths.ContainsKey($fullPath)
+      } |
       ForEach-Object {
         [pscustomobject]@{
           FileName = $_.Name
