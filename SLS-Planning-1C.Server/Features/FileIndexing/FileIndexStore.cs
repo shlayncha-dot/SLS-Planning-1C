@@ -100,6 +100,24 @@ public sealed class FileIndexStore : IFileIndexStore
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        if (string.IsNullOrWhiteSpace(request.MachineId))
+        {
+            throw new InvalidOperationException("MachineId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.RootPath))
+        {
+            throw new InvalidOperationException("RootPath is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BaseSnapshotHash) || string.IsNullOrWhiteSpace(request.NewSnapshotHash))
+        {
+            throw new InvalidOperationException("BaseSnapshotHash and NewSnapshotHash are required.");
+        }
+
+        var deletedRelativePaths = request.DeletedRelativePaths ?? [];
+        var addedOrUpdatedFiles = request.AddedOrUpdatedFiles ?? [];
+
         lock (_sync)
         {
             if (!_snapshotsByMachine.TryGetValue(request.MachineId, out var existingSnapshot))
@@ -125,7 +143,7 @@ public sealed class FileIndexStore : IFileIndexStore
             var mergedByPath = existingSnapshot.Files
                 .ToDictionary(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var deletedPath in request.DeletedRelativePaths)
+            foreach (var deletedPath in deletedRelativePaths)
             {
                 if (!string.IsNullOrWhiteSpace(deletedPath))
                 {
@@ -133,8 +151,13 @@ public sealed class FileIndexStore : IFileIndexStore
                 }
             }
 
-            foreach (var file in request.AddedOrUpdatedFiles)
+            foreach (var file in addedOrUpdatedFiles)
             {
+                if (string.IsNullOrWhiteSpace(file.RelativePath))
+                {
+                    continue;
+                }
+
                 mergedByPath[file.RelativePath] = file;
             }
 
