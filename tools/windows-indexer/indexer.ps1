@@ -81,15 +81,31 @@ $syncUrl = "$serverUrl$syncEndpoint"
 
 $scanIntervalSeconds = if ($null -ne $config.scanIntervalSeconds) { [int]$config.scanIntervalSeconds } else { 30 }
 $maxPayloadBytes = if ($null -ne $config.maxPayloadBytes) { [int]$config.maxPayloadBytes } else { 800000 }
+$requestTimeoutSeconds = if ($null -ne $config.requestTimeoutSeconds) { [int]$config.requestTimeoutSeconds } else { 30 }
+
+$headers = @{}
+if ($config.auth -and $config.auth.apiKeyHeader -and $config.auth.apiKey) {
+  $headers[[string]$config.auth.apiKeyHeader] = [string]$config.auth.apiKey
+}
+
+if ($config.auth -and $config.auth.username -and $config.auth.password) {
+  $basicAuth = "{0}:{1}" -f [string]$config.auth.username, [string]$config.auth.password
+  $basicAuthBytes = [System.Text.Encoding]::UTF8.GetBytes($basicAuth)
+  $headers["Authorization"] = "Basic " + [Convert]::ToBase64String($basicAuthBytes)
+}
 
 Write-Host "Indexer started. Scan root: $scanRoot"
 Write-Host "Sync URL: $syncUrl"
+Write-Host "Scan interval: $scanIntervalSeconds sec"
 Write-Host "Max payload bytes: $maxPayloadBytes"
+Write-Host "Request timeout: $requestTimeoutSeconds sec"
 
 $lastHash = $null
 
 while ($true) {
   try {
+    Write-Host "[$(Get-Date -Format o)] Scan started..."
+
     $files = Get-ChildItem -LiteralPath $scanRoot -File -Recurse -ErrorAction SilentlyContinue |
       Where-Object { $_.Extension -in @('.pdf', '.dxf') } |
       ForEach-Object {
@@ -102,9 +118,12 @@ while ($true) {
         }
       }
 
+    Write-Host "[$(Get-Date -Format o)] Files discovered: $($files.Count)"
+
     $snapshotHash = Get-SnapshotHash -Files $files
 
     if ($snapshotHash -eq $lastHash) {
+      Write-Host "[$(Get-Date -Format o)] No changes detected. Sleeping for $scanIntervalSeconds sec."
       Start-Sleep -Seconds $scanIntervalSeconds
       continue
     }
@@ -119,6 +138,8 @@ while ($true) {
     $batches = Split-FileBatches -Files $files -PayloadTemplate $payloadTemplate -MaxPayloadBytes $maxPayloadBytes
     $totalChunks = $batches.Count
 
+    Write-Host "[$(Get-Date -Format o)] Changes detected. Sending $totalChunks chunk(s)..."
+
     for ($i = 0; $i -lt $totalChunks; $i++) {
       $payload = $payloadTemplate.Clone()
       $payload.Files = $batches[$i]
@@ -129,7 +150,7 @@ while ($true) {
       }
 
       $json = $payload | ConvertTo-Json -Depth 6 -Compress
-      Invoke-RestMethod -Uri $syncUrl -Method Post -ContentType 'application/json' -Body $json | Out-Null
+      Invoke-RestMethod -Uri $syncUrl -Method Post -ContentType 'application/json' -Headers $headers -Body $json -TimeoutSec $requestTimeoutSeconds | Out-Null
       Write-Host "[$(Get-Date -Format o)] Synced chunk $($i + 1)/$totalChunks, files: $($batches[$i].Count)"
     }
 

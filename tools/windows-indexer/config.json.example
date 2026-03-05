@@ -4,5 +4,6 @@
   "scanRoot": ".",
   "scanIntervalSeconds": 30,
   "machineId": "PC-REMOTE-01",
-  "maxPayloadBytes": 800000
+  "maxPayloadBytes": 800000,
+  "requestTimeoutSeconds": 30
 }
