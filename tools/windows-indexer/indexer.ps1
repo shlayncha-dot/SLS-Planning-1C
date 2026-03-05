@@ -90,8 +90,7 @@ function Test-IsTransientSendError([System.Management.Automation.ErrorRecord]$Er
   }
 
   $combined = ($messages -join ' | ').ToLowerInvariant()
-  return $combined.Contains('базовое соединение закрыто') -or
-    $combined.Contains('underlying connection was closed') -or
+  return $combined.Contains('underlying connection was closed') -or
     $combined.Contains('unexpected error on send')
 }
 
@@ -251,7 +250,7 @@ while ($true) {
     $err = $_
     if ($err.Exception.Response -and $err.Exception.Response.StatusCode) {
       $statusCode = [int]$err.Exception.Response.StatusCode
-      Write-Host "[$(Get-Date -Format o)] Error: Удаленный сервер возвратил ошибку: ($statusCode) $($err.Exception.Response.StatusDescription)."
+      Write-Host "[$(Get-Date -Format o)] Error: Remote server returned an error: ($statusCode) $($err.Exception.Response.StatusDescription)."
     }
     else {
       Write-Host "[$(Get-Date -Format o)] Error: $($err.Exception.Message)"
