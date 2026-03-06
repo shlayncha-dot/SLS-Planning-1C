@@ -3,6 +3,7 @@ setlocal
 
 set "SCRIPT_DIR=%~dp0"
 set "CONFIG_FILE=%SCRIPT_DIR%config.json"
+set "INDEXER_SCRIPT=%SCRIPT_DIR%indexer.ps1"
 set "POWERSHELL_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 if not exist "%POWERSHELL_EXE%" (
@@ -15,7 +16,12 @@ if not exist "%CONFIG_FILE%" (
   exit /b 1
 )
 
-"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%indexer.ps1" -ConfigPath "%CONFIG_FILE%"
+if not exist "%INDEXER_SCRIPT%" (
+  echo [ERROR] indexer.ps1 not found at "%INDEXER_SCRIPT%".
+  exit /b 1
+)
+
+"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%INDEXER_SCRIPT%" -ConfigPath "%CONFIG_FILE%"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
