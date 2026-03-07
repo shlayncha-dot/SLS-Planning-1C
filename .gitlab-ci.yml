@@ -1,0 +1,74 @@
+stages:
+  - build
+  - update
+  - deploy
+
+# BUILD
+.image_build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.9.1-debug
+    entrypoint: ['']
+  before_script:
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - echo -e "@omnipkg:registry=https://${CI_SERVER_HOST}/api/v4/packages/npm/ \n
+      //${CI_SERVER_HOST}/api/v4/packages/npm/:_authToken=${CI_JOB_TOKEN}" > .npmrc
+  script:
+    - /kaniko/executor
+      --skip-tls-verify
+      --skip-tls-verify-pull
+      --context "${IMAGE_BUILD_CONTEXT}"
+      --dockerfile "${IMAGE_BUILD_CONTEXT}/${IMAGE_BUILD_DOCKERFILE}"
+      --destination "${CI_REGISTRY_IMAGE}/${IMAGE_BUILD_NAME}:${IMAGE_BUILD_VERSION}"
+      --destination "${CI_REGISTRY_IMAGE}/${IMAGE_BUILD_NAME}:latest"
+      --cache=true
+      --cache-repo "${CI_REGISTRY_IMAGE}/${IMAGE_BUILD_NAME}/cache"
+      --cache-run-layers
+      --cache-ttl 336h
+
+image:build:prod:
+  extends: .image_build
+  variables:
+    IMAGE_BUILD_CONTEXT: .
+    IMAGE_BUILD_NAME: app
+    IMAGE_BUILD_VERSION: ${CI_COMMIT_SHORT_SHA}
+    IMAGE_BUILD_DOCKERFILE: Dockerfile
+  except:
+    - tags
+  only:
+    - main
+
+.update_manifests:
+  stage: update
+  image:
+    name: quay.io/vasiliyozerov/argocd-image-updater:latest
+  script:
+    - argocd-image-updater run --once --kubeconfig ${KUBECONFIG} --loglevel debug --match-application-name ${APP_NAME} --argocd-namespace omnic-platform-ifr
+
+update:manifests:prod:
+  extends: .update_manifests
+  variables:
+    APP_NAME: sls-production-board
+  except:
+    - tags
+  only:
+    - main
+
+.deploy:
+  stage: deploy
+  image:
+    name: argoproj/argocd
+  script:
+    - argocd --grpc-web --server ${ARGOCD_SERVER} app sync --prune ${APP_NAME}
+    - argocd --grpc-web --server ${ARGOCD_SERVER} app wait --health ${APP_NAME}
+
+deploy:prod:
+  extends: .deploy
+  environment:
+    name: production
+  variables:
+    APP_NAME: sls-production-board
+  except:
+    - tags
+  only:
+    - main
