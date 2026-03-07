@@ -130,6 +130,12 @@ const normalizeLabelForMatch = (label) => normalizeValue(label)
 
 const normalizeCellForCompare = (value) => normalizeValue(value).toLowerCase();
 
+
+const preferredDesignationColumnLabels = [
+    'Обозначение WD- Без чертежа (гибов)',
+    'Обозначение'
+];
+
 const isTypeLabel = (label) => {
     const normalized = normalizeLabelForMatch(label);
     return normalized === 'тип' || normalized.startsWith('тип');
@@ -982,7 +988,12 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     }, [tableColumns]);
 
     const designationTargetColumnKey = useMemo(() => {
-        const designationColumn = tableColumns.find((column) => column.label.toLowerCase().includes('обознач'));
+        const preferredColumn = findColumnByAliases(tableColumns, preferredDesignationColumnLabels);
+        if (preferredColumn) {
+            return preferredColumn.key;
+        }
+
+        const designationColumn = tableColumns.find((column) => normalizeValue(column.label).toLowerCase().includes('обознач'));
         return designationColumn?.key || null;
     }, [tableColumns]);
 
