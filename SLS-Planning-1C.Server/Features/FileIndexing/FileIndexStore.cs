@@ -4,6 +4,7 @@ namespace SLS_Planning_1C.Server.Features.FileIndexing;
 
 public interface IFileIndexStore
 {
+    void ClearAllSnapshots();
     FileIndexSyncResponse UpsertSnapshot(FileIndexSyncRequest request);
     FileIndexSyncResponse ApplyDelta(FileIndexDeltaSyncRequest request);
     IReadOnlyList<IndexedFileDto> GetAllIndexedFiles();
@@ -84,6 +85,16 @@ public sealed class FileIndexStore : IFileIndexStore
 
             _pendingUploadsByMachine.Remove(request.MachineId);
             return UpsertCompleteSnapshot(request.MachineId, request.EffectiveRootPath, request.SnapshotHash, mergedFiles);
+        }
+    }
+
+    public void ClearAllSnapshots()
+    {
+        lock (_sync)
+        {
+            _pendingUploadsByMachine.Clear();
+            _snapshotsByMachine.Clear();
+            PersistToDisk();
         }
     }
 
