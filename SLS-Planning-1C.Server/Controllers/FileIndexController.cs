@@ -92,7 +92,7 @@ public sealed class FileIndexController : ControllerBase
         if (match is null)
         {
             _logger.LogWarning("Drawing preview not found in index for detail '{DetailName}'.", detailName);
-            return NotFound("Чертеж не найден.");
+            return NotFound($"Чертеж не найден в индексе для детали '{detailName}'.");
         }
 
         var candidates = GetPathCandidates(match, linkServer).ToList();
@@ -119,7 +119,11 @@ public sealed class FileIndexController : ControllerBase
         if (string.IsNullOrWhiteSpace(existingPath))
         {
             _logger.LogWarning("Drawing preview file not found on disk for detail '{DetailName}'.", detailName);
-            return NotFound("Чертеж не найден.");
+            var candidatesText = candidates.Count > 0
+                ? string.Join("; ", candidates)
+                : "нет доступных путей";
+
+            return NotFound($"Чертеж не найден. Проверенные пути: {candidatesText}");
         }
 
         _logger.LogInformation("Drawing preview file resolved for detail '{DetailName}': '{ResolvedPath}'.", detailName, existingPath);
