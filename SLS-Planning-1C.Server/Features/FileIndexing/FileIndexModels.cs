@@ -76,3 +76,11 @@ public sealed class FileIndexSnapshot
     public required IReadOnlyList<IndexedFileDto> Files { get; init; }
     public DateTime UpdatedAtUtc { get; init; }
 }
+
+public sealed class IndexedFileMatch
+{
+    public required string MachineId { get; init; }
+    public required string RootPath { get; init; }
+    public required IndexedFileDto File { get; init; }
+    public required DateTime SnapshotUpdatedAtUtc { get; init; }
+}

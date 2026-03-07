@@ -13,6 +13,7 @@ const KDTableRow = React.memo(({
     onToggleRow,
     selectedCell,
     onSelectCell,
+    onDetailClick,
     namingIssuesByRowId,
     namingTargetColumnKey,
     verificationIssuesByRowId,
@@ -47,7 +48,10 @@ const KDTableRow = React.memo(({
                 <td
                     key={`${row.id}-${column.key}`}
                     className={cellClassName}
-                    onClick={() => onSelectCell(row.id, column.key)}
+                    onClick={() => {
+                        onSelectCell(row.id, column.key);
+                        onDetailClick(row, column.key);
+                    }}
                     title={String(row[column.key] ?? '')}
                 >
                     {row[column.key]}
@@ -91,7 +95,10 @@ const KDCheckView = ({
     onCloseVerificationReport,
     generalCheckReport,
     onCloseGeneralCheckReport,
-    designationTargetColumnKey
+    designationTargetColumnKey,
+    onRequestDrawingPreview,
+    drawingPreview,
+    onCloseDrawingPreview
 }) => {
     const [openFilterKey, setOpenFilterKey] = React.useState(null);
     const [pendingFilters, setPendingFilters] = React.useState({});
@@ -127,6 +134,23 @@ const KDCheckView = ({
     const handleSelectCell = React.useCallback((rowId, columnKey) => {
         setSelectedCell({ rowId, columnKey });
     }, []);
+
+    const handleDetailClick = React.useCallback(async (row, columnKey) => {
+        if (!namingTargetColumnKey || columnKey !== namingTargetColumnKey) {
+            return;
+        }
+
+        const detailName = String(row?.[columnKey] ?? '').trim();
+        if (!detailName) {
+            return;
+        }
+
+        try {
+            await onRequestDrawingPreview(detailName);
+        } catch {
+            alert('Чертеж не найден');
+        }
+    }, [namingTargetColumnKey, onRequestDrawingPreview]);
 
     React.useEffect(() => {
         const element = tableWrapRef.current;
@@ -201,9 +225,10 @@ const KDCheckView = ({
                 namingTargetColumnKey={namingTargetColumnKey}
                 verificationIssuesByRowId={verificationIssuesByRowId}
                 designationTargetColumnKey={designationTargetColumnKey}
+                onDetailClick={handleDetailClick}
             />
         ))
-    ), [checkedRows, designationTargetColumnKey, handleSelectCell, namingIssuesByRowId, namingTargetColumnKey, onToggleRow, selectedCell, tableColumns, verificationIssuesByRowId, visibleRows]);
+    ), [checkedRows, designationTargetColumnKey, handleDetailClick, handleSelectCell, namingIssuesByRowId, namingTargetColumnKey, onToggleRow, selectedCell, tableColumns, verificationIssuesByRowId, visibleRows]);
 
     const closeFilterPopover = React.useCallback(() => {
         setOpenFilterKey(null);
@@ -547,6 +572,31 @@ const KDCheckView = ({
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {drawingPreview && (
+                <div className="verification-report-overlay" onClick={onCloseDrawingPreview}>
+                    <div className="verification-report-modal drawing-preview-modal" onClick={(event) => event.stopPropagation()}>
+                        <h3>Превью: {drawingPreview.detailName}</h3>
+                        {drawingPreview.filePath ? <p className="drawing-preview-path">{drawingPreview.filePath}</p> : null}
+
+                        {drawingPreview.contentType.includes('pdf') ? (
+                            <iframe
+                                title={drawingPreview.fileName}
+                                src={drawingPreview.url}
+                                className="drawing-preview-frame"
+                            />
+                        ) : drawingPreview.contentType.startsWith('image/') ? (
+                            <img src={drawingPreview.url} alt={drawingPreview.fileName} className="drawing-preview-image" />
+                        ) : (
+                            <p>Формат файла не поддерживает встроенное превью.</p>
+                        )}
+
+                        <div className="modal-actions">
+                            <button type="button" className="cancel-btn" onClick={onCloseDrawingPreview}>Закрыть</button>
                         </div>
                     </div>
                 </div>

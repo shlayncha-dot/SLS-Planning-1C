@@ -124,7 +124,8 @@ public sealed class VerificationSettingsStore : IVerificationSettingsStore
             Columns = specificationSettings?.Columns?.Trim() ?? string.Empty,
             Type = specificationSettings?.Type?.Trim() ?? string.Empty,
             Coverage = specificationSettings?.Coverage?.Trim() ?? string.Empty,
-            Primer = specificationSettings?.Primer?.Trim() ?? string.Empty
+            Primer = specificationSettings?.Primer?.Trim() ?? string.Empty,
+            LinkServer = specificationSettings?.LinkServer?.Trim() ?? string.Empty
         };
     }
 

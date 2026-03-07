@@ -6,6 +6,10 @@ export const verificationApi = {
     namingAuthCredentials: '/api/naming-auth/credentials'
 };
 
+export const fileIndexApi = {
+    drawingPreview: '/api/file-index/drawing-preview'
+};
+
 export const specificationUploadApi = {
     products: '/api/specification-upload/products',
     specifications: '/api/specification-upload/specifications/summary',

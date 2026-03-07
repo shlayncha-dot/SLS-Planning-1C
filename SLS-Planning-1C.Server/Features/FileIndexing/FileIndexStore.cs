@@ -7,6 +7,7 @@ public interface IFileIndexStore
     FileIndexSyncResponse UpsertSnapshot(FileIndexSyncRequest request);
     FileIndexSyncResponse ApplyDelta(FileIndexDeltaSyncRequest request);
     IReadOnlyList<IndexedFileDto> GetAllIndexedFiles();
+    IReadOnlyList<IndexedFileMatch> FindByDetailName(string detailName);
 }
 
 public sealed class FileIndexStore : IFileIndexStore
@@ -92,6 +93,35 @@ public sealed class FileIndexStore : IFileIndexStore
         {
             return _snapshotsByMachine.Values
                 .SelectMany(s => s.Files)
+                .ToList();
+        }
+    }
+
+    public IReadOnlyList<IndexedFileMatch> FindByDetailName(string detailName)
+    {
+        var normalizedDetailName = detailName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedDetailName))
+        {
+            return [];
+        }
+
+        lock (_sync)
+        {
+            return _snapshotsByMachine.Values
+                .SelectMany(snapshot => snapshot.Files.Select(file => new IndexedFileMatch
+                {
+                    MachineId = snapshot.MachineId,
+                    RootPath = snapshot.RootPath,
+                    File = file,
+                    SnapshotUpdatedAtUtc = snapshot.UpdatedAtUtc
+                }))
+                .Where(match => string.Equals(
+                    Path.GetFileNameWithoutExtension(match.File.FileName),
+                    normalizedDetailName,
+                    StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(match => match.SnapshotUpdatedAtUtc)
+                .ThenBy(match => match.File.RelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
     }

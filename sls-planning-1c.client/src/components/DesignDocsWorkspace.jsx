@@ -3,7 +3,7 @@ import SpecificationUploadView from './designDocs/SpecificationUploadView';
 import SpecificationListView from './designDocs/SpecificationListView';
 import KDCheckView from './designDocs/KDCheckView';
 import DesignDocsSettingsView from './designDocs/DesignDocsSettingsView';
-import { specificationUploadApi, verificationApi } from '../config/apiConfig';
+import { fileIndexApi, specificationUploadApi, verificationApi } from '../config/apiConfig';
 import { extractRowsForNamingCheck } from '../services/namingCheckService';
 
 const sampleSpecs = [];
@@ -58,7 +58,8 @@ const createSpecificationSettings = () => ({
     columns: '',
     type: '',
     coverage: '',
-    primer: ''
+    primer: '',
+    linkServer: ''
 });
 
 const normalizeSpecificationSettings = (specification) => {
@@ -72,7 +73,8 @@ const normalizeSpecificationSettings = (specification) => {
         columns: String(specification.columns ?? ''),
         type: String(specification.type ?? ''),
         coverage: String(specification.coverage ?? ''),
-        primer: String(specification.primer ?? '')
+        primer: String(specification.primer ?? ''),
+        linkServer: String(specification.linkServer ?? '')
     };
 };
 
@@ -240,6 +242,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
     const [namingLogs, setNamingLogs] = useState([]);
     const [isNamingLogOpen, setIsNamingLogOpen] = useState(false);
     const [generalCheckReport, setGeneralCheckReport] = useState(null);
+    const [drawingPreview, setDrawingPreview] = useState(null);
 
     const appendNamingLog = useCallback((message) => {
         setNamingLogs((prevState) => [...prevState, message]);
@@ -1047,6 +1050,51 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         setSpecificationSettings({ ...savedSpecificationSettings });
     };
 
+    const handleDrawingPreviewRequest = useCallback(async (detailName) => {
+        const normalizedDetailName = String(detailName ?? '').trim();
+
+        if (!normalizedDetailName) {
+            return;
+        }
+
+        const query = new URLSearchParams({ detailName: normalizedDetailName });
+        const response = await fetch(`${fileIndexApi.drawingPreview}?${query.toString()}`);
+
+        if (!response.ok) {
+            throw new Error('Чертеж не найден');
+        }
+
+        const contentType = response.headers.get('Content-Type') || '';
+        const filePath = response.headers.get('X-Drawing-Path') || '';
+        const fileName = response.headers.get('X-Drawing-FileName') || normalizedDetailName;
+        const blob = await response.blob();
+        const previewUrl = URL.createObjectURL(blob);
+
+        setDrawingPreview((prevState) => {
+            if (prevState?.url) {
+                URL.revokeObjectURL(prevState.url);
+            }
+
+            return {
+                detailName: normalizedDetailName,
+                fileName,
+                filePath,
+                url: previewUrl,
+                contentType
+            };
+        });
+    }, []);
+
+    const closeDrawingPreview = useCallback(() => {
+        setDrawingPreview((prevState) => {
+            if (prevState?.url) {
+                URL.revokeObjectURL(prevState.url);
+            }
+
+            return null;
+        });
+    }, []);
+
     return (
         <>
             <div className={`design-docs-subview ${activeSubItem === 0 ? 'active' : ''}`}>
@@ -1116,6 +1164,9 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
                     generalCheckReport={generalCheckReport}
                     onCloseGeneralCheckReport={() => setGeneralCheckReport(null)}
                     designationTargetColumnKey={designationTargetColumnKey}
+                    onRequestDrawingPreview={handleDrawingPreviewRequest}
+                    drawingPreview={drawingPreview}
+                    onCloseDrawingPreview={closeDrawingPreview}
                 />
             </div>
 

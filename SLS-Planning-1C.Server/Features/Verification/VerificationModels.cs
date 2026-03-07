@@ -13,6 +13,7 @@ public sealed class SpecificationSettingsDto
     public string Type { get; init; } = string.Empty;
     public string Coverage { get; init; } = string.Empty;
     public string Primer { get; init; } = string.Empty;
+    public string LinkServer { get; init; } = string.Empty;
 }
 
 public sealed class VerificationSettingsDto
