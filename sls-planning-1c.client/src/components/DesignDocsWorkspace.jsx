@@ -1061,7 +1061,8 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         const response = await fetch(`${fileIndexApi.drawingPreview}?${query.toString()}`);
 
         if (!response.ok) {
-            throw new Error('Чертеж не найден');
+            const errorText = (await response.text()).trim();
+            throw new Error(errorText || 'Чертеж не найден');
         }
 
         const contentType = response.headers.get('Content-Type') || '';
