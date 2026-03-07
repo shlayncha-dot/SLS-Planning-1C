@@ -340,36 +340,60 @@ public sealed class VerificationService : IVerificationService
             return null;
         }
 
-        var match = Regex.Match(
-            normalized,
-            @"^(?<prefix>[^.]+)\.(?<rest>.*)\.(?<suffix>\d{3}\.\d{3}|\d{3}\.\d{2}|\d{2}\.\d{3}|\d{3}|\d{2})(?<revision>\.[Rr](?:\.\d+(?:\.\d+)?|\d+(?:\.\d+)?))?(?<trash>-.*)?$",
-            RegexOptions.CultureInvariant);
-
-        if (!match.Success)
+        var firstDot = normalized.IndexOf('.');
+        if (firstDot <= 0 || firstDot == normalized.Length - 1)
         {
             return null;
         }
 
-        var prefix = match.Groups["prefix"].Value;
-        var rest = match.Groups["rest"].Value;
-        var suffix = match.Groups["suffix"].Value;
-
+        var prefix = normalized[..firstDot];
         if (string.IsNullOrWhiteSpace(prefix))
         {
             return null;
         }
 
-        var revisionGroup = match.Groups["revision"].Value;
-        var revision = string.IsNullOrWhiteSpace(revisionGroup)
-            ? null
-            : revisionGroup[1..];
+        var afterPrefix = normalized[(firstDot + 1)..];
 
-        return new Type3SearchKey(
-            prefix,
-            rest,
-            suffix,
-            revision,
-            ContainsType3RestSpecialSymbol(rest));
+        string[] suffixPatterns =
+        [
+            @"\d{3}\.\d{3}",
+            @"\d{3}\.\d{2}",
+            @"\d{2}\.\d{3}",
+            @"\d{3}",
+            @"\d{2}"
+        ];
+
+        foreach (var suffixPattern in suffixPatterns)
+        {
+            var match = Regex.Match(
+                afterPrefix,
+                $@"(^|\.)(?<suffix>{suffixPattern})(?<revision>\.[Rr](?:\.\d+(?:\.\d+)?|\d+(?:\.\d+)?))?(?<trash>-.*)?$",
+                RegexOptions.CultureInvariant);
+
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var suffix = match.Groups["suffix"].Value;
+            var revisionGroup = match.Groups["revision"].Value;
+            var revision = string.IsNullOrWhiteSpace(revisionGroup)
+                ? null
+                : revisionGroup[1..];
+
+            var rest = match.Index == 0
+                ? string.Empty
+                : afterPrefix[..match.Index];
+
+            return new Type3SearchKey(
+                prefix,
+                rest,
+                suffix,
+                revision,
+                ContainsType3RestSpecialSymbol(rest));
+        }
+
+        return null;
     }
 
     private static bool ContainsType3RestSpecialSymbol(string rest)
