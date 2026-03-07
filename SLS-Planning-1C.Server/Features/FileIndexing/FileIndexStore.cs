@@ -159,6 +159,9 @@ public sealed class FileIndexStore : IFileIndexStore
         var deletedRelativePaths = request.DeletedRelativePaths ?? [];
         var addedOrUpdatedFiles = request.AddedOrUpdatedFiles ?? [];
 
+        ValidateRelativePaths(addedOrUpdatedFiles.Select(file => file.RelativePath));
+        ValidateRelativePaths(deletedRelativePaths);
+
         lock (_sync)
         {
             if (!_snapshotsByMachine.TryGetValue(request.MachineId, out var existingSnapshot))
@@ -232,6 +235,8 @@ public sealed class FileIndexStore : IFileIndexStore
         string snapshotHash,
         IReadOnlyList<IndexedFileDto> files)
     {
+        ValidateRelativePaths(files.Select(file => file.RelativePath));
+
         if (_snapshotsByMachine.TryGetValue(machineId, out var existing)
             && string.Equals(existing.SnapshotHash, snapshotHash, StringComparison.Ordinal))
         {
@@ -275,6 +280,27 @@ public sealed class FileIndexStore : IFileIndexStore
             SizeBytes = file.EffectiveSizeBytes,
             Hash = file.Hash
         };
+    }
+
+    private static void ValidateRelativePaths(IEnumerable<string> relativePaths)
+    {
+        foreach (var path in relativePaths)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            // В Windows символ '?' недопустим в именах файлов/папок,
+            // поэтому его появление в индексируемых путях почти всегда означает
+            // порчу кодировки (например, "Поддон" -> "??????").
+            if (path.Contains('?') || path.Contains('\uFFFD'))
+            {
+                throw new InvalidOperationException(
+                    $"Обнаружен поврежденный путь в индексе: '{path}'. " +
+                    "Проверьте кодировку на стороне индексатора (используйте UTF-8/Windows-1251) и выполните полную пересинхронизацию.");
+            }
+        }
     }
 
     private PendingSnapshotUpload GetOrCreatePendingUpload(FileIndexSyncRequest request, int totalChunks)
