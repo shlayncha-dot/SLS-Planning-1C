@@ -49,6 +49,14 @@ public sealed class FileIndexController : ControllerBase
         }
     }
 
+
+    [HttpPost("clear")]
+    public IActionResult Clear()
+    {
+        _fileIndexStore.ClearAllSnapshots();
+        return Ok();
+    }
+
     [HttpPost("test")]
     public ActionResult<string> Test([FromBody] FileIndexTestRequest request)
     {

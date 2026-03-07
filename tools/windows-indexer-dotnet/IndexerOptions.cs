@@ -5,6 +5,7 @@ public sealed class IndexerOptions
     public required string ServerUrl { get; init; }
     public string SyncEndpoint { get; init; } = "/api/file-index/sync";
     public string SyncDeltaEndpoint { get; init; } = "/api/file-index/sync-delta";
+    public string ClearEndpoint { get; init; } = "/api/file-index/clear";
     public required string ScanRoot { get; init; }
     public int ScanIntervalSeconds { get; init; } = 30;
     public required string MachineId { get; init; }

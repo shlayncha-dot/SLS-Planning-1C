@@ -19,6 +19,7 @@ public sealed class IndexerWorker : BackgroundService
     private readonly string _scanRoot;
     private readonly string _syncUrl;
     private readonly string _syncDeltaUrl;
+    private readonly string _clearUrl;
     private readonly HashSet<string> _includeExtensions;
 
     public IndexerWorker(
@@ -35,6 +36,7 @@ public sealed class IndexerWorker : BackgroundService
         _scanRoot = Path.GetFullPath(_options.ScanRoot);
         _syncUrl = BuildUrl(_options.ServerUrl, _options.SyncEndpoint);
         _syncDeltaUrl = BuildUrl(_options.ServerUrl, _options.SyncDeltaEndpoint);
+        _clearUrl = BuildUrl(_options.ServerUrl, _options.ClearEndpoint);
 
         _includeExtensions = (_options.IncludeExtensions ?? [])
             .Select(x => x.Trim())
@@ -44,15 +46,24 @@ public sealed class IndexerWorker : BackgroundService
 
         ConfigureAuth();
 
-        _logger.LogInformation("Indexer worker started. ScanRoot={ScanRoot}, Sync={SyncUrl}, Delta={DeltaUrl}", _scanRoot, _syncUrl, _syncDeltaUrl);
+        _logger.LogInformation("Indexer worker started. ScanRoot={ScanRoot}, Sync={SyncUrl}, Delta={DeltaUrl}, Clear={ClearUrl}", _scanRoot, _syncUrl, _syncDeltaUrl, _clearUrl);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var isFirstCycle = true;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (isFirstCycle)
+                {
+                    await ClearServerSnapshotsOnStartupAsync(stoppingToken);
+                    _state.SaveSnapshot(string.Empty, []);
+                    isFirstCycle = false;
+                }
+
                 if (_options.EmitCycleLogs)
                 {
                     _logger.LogInformation("Scan started...");
@@ -111,6 +122,24 @@ public sealed class IndexerWorker : BackgroundService
         }
 
         return result;
+    }
+
+    private async Task ClearServerSnapshotsOnStartupAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("Clearing file index snapshots on server before first sync...");
+        using var request = new HttpRequestMessage(HttpMethod.Post, _clearUrl)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+
+        var response = await SendRequestWithRetryAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Clear sync store failed: {(int)response.StatusCode} {body}");
+        }
+
+        _logger.LogInformation("Server file index snapshots cleared.");
     }
 
     private async Task SyncAsync(List<IndexedFileDto> files, string? previousHash, string currentHash, CancellationToken ct)
@@ -192,12 +221,22 @@ public sealed class IndexerWorker : BackgroundService
 
     private async Task<HttpResponseMessage> SendWithRetryAsync<T>(string url, T payload, CancellationToken ct)
     {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json")
+        };
+
+        return await SendRequestWithRetryAsync(request, ct);
+    }
+
+    private async Task<HttpResponseMessage> SendRequestWithRetryAsync(HttpRequestMessage requestTemplate, CancellationToken ct)
+    {
         for (var attempt = 1; attempt <= _options.RetryCount + 1; attempt++)
         {
-            using var content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+            using var request = CloneRequest(requestTemplate);
             try
             {
-                var response = await _httpClient.PostAsync(url, content, ct);
+                var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode || attempt > _options.RetryCount)
                 {
                     return response;
@@ -214,6 +253,29 @@ public sealed class IndexerWorker : BackgroundService
         }
 
         throw new InvalidOperationException("Unexpected retry state.");
+    }
+
+    private static HttpRequestMessage CloneRequest(HttpRequestMessage request)
+    {
+        var clone = new HttpRequestMessage(request.Method, request.RequestUri);
+
+        foreach (var header in request.Headers)
+        {
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
+        if (request.Content is not null)
+        {
+            var body = request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            clone.Content = new StringContent(body, Encoding.UTF8, request.Content.Headers.ContentType?.MediaType ?? "application/json");
+
+            foreach (var header in request.Content.Headers)
+            {
+                clone.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+        }
+
+        return clone;
     }
 
     private FileIndexDeltaSyncRequest BuildDelta(

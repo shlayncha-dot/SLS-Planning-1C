@@ -2,6 +2,7 @@
   "serverUrl": "https://sls-planning.omnic.pro",
   "syncEndpoint": "/api/file-index/sync",
   "syncDeltaEndpoint": "/api/file-index/sync-delta",
+  "clearEndpoint": "/api/file-index/clear",
   "scanRoot": ".",
   "scanIntervalSeconds": 30,
   "machineId": "PC-REMOTE-01",

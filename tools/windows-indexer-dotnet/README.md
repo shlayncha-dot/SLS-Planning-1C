@@ -3,6 +3,7 @@
 Новый индексатор совместим с текущим серверным API:
 - `POST /api/file-index/sync`
 - `POST /api/file-index/sync-delta`
+- `POST /api/file-index/clear`
 
 ## Что внутри
 - `WindowsIndexer.Worker.csproj` — проект .NET 8 Worker.
@@ -26,5 +27,6 @@ dotnet publish ./WindowsIndexer.Worker.csproj -c Release -r win-x64 --self-conta
 ## Поведение
 - Сканирует `scanRoot` рекурсивно.
 - Строит snapshot hash по тем же полям (`RelativePath|SizeBytes|Extension|LastWriteTimeUtc`).
+- При старте очищает серверную БД индекса (`/api/file-index/clear`), чтобы исключить смешивание данных с разных ПК.
 - При изменениях пытается отправить delta, при ошибках `400/404/409` делает fallback на full sync.
 - При full sync автоматически режет payload на чанки под `maxPayloadBytes`.

@@ -26,6 +26,7 @@ var options = new IndexerOptions
     ServerUrl = parsed.ServerUrl,
     SyncEndpoint = parsed.SyncEndpoint,
     SyncDeltaEndpoint = parsed.SyncDeltaEndpoint,
+    ClearEndpoint = parsed.ClearEndpoint,
     ScanRoot = normalizedScanRoot,
     ScanIntervalSeconds = parsed.ScanIntervalSeconds,
     MachineId = parsed.MachineId,
