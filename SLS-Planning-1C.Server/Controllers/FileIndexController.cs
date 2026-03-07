@@ -10,15 +10,18 @@ public sealed class FileIndexController : ControllerBase
 {
     private readonly IFileIndexStore _fileIndexStore;
     private readonly IVerificationSettingsStore _verificationSettingsStore;
+    private readonly IVerificationResultCacheStore _verificationResultCacheStore;
     private readonly ILogger<FileIndexController> _logger;
 
     public FileIndexController(
         IFileIndexStore fileIndexStore,
         IVerificationSettingsStore verificationSettingsStore,
+        IVerificationResultCacheStore verificationResultCacheStore,
         ILogger<FileIndexController> logger)
     {
         _fileIndexStore = fileIndexStore;
         _verificationSettingsStore = verificationSettingsStore;
+        _verificationResultCacheStore = verificationResultCacheStore;
         _logger = logger;
     }
 
@@ -81,6 +84,19 @@ public sealed class FileIndexController : ControllerBase
         }
 
         var linkServer = _verificationSettingsStore.Get().SpecificationSettings.LinkServer;
+        var cachedPdfCandidates = GetCachedPdfCandidates(detailName).ToList();
+        var existingCachedPath = cachedPdfCandidates.FirstOrDefault(System.IO.File.Exists);
+        if (!string.IsNullOrWhiteSpace(existingCachedPath))
+        {
+            _logger.LogInformation("Drawing preview file resolved from verification cache for detail '{DetailName}': '{ResolvedPath}'.", detailName, existingCachedPath);
+
+            var cachedContentType = ResolveContentType(Path.GetExtension(existingCachedPath));
+            Response.Headers.Append("X-Drawing-Path", existingCachedPath);
+            Response.Headers.Append("X-Drawing-FileName", Path.GetFileName(existingCachedPath));
+
+            return PhysicalFile(existingCachedPath, cachedContentType, enableRangeProcessing: true);
+        }
+
         var match = FindPreviewMatch(detailName);
 
         _logger.LogInformation(
@@ -142,6 +158,27 @@ public sealed class FileIndexController : ControllerBase
         Response.Headers.Append("X-Drawing-FileName", Path.GetFileName(existingPath));
 
         return PhysicalFile(existingPath, contentType, enableRangeProcessing: true);
+    }
+
+
+    private IEnumerable<string> GetCachedPdfCandidates(string detailName)
+    {
+        var normalizedName = detailName.Trim();
+        foreach (var candidate in _verificationResultCacheStore.GetPdfPaths(normalizedName))
+        {
+            yield return candidate;
+        }
+
+        var fallbackName = NormalizeType1DetailName(normalizedName);
+        if (string.Equals(fallbackName, normalizedName, StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        foreach (var candidate in _verificationResultCacheStore.GetPdfPaths(fallbackName))
+        {
+            yield return candidate;
+        }
     }
 
     private IndexedFileMatch? FindPreviewMatch(string detailName)

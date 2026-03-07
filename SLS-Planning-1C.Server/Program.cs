@@ -31,6 +31,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IFileIndexStore, FileIndexStore>();
 builder.Services.AddScoped<IVerificationService, VerificationService>();
+builder.Services.AddSingleton<IVerificationResultCacheStore, VerificationResultCacheStore>();
 builder.Services.AddSingleton<IVerificationSettingsStore, VerificationSettingsStore>();
 builder.Services.AddScoped<INamingService, NamingService>();
 builder.Services.AddSingleton<INamingCredentialsStore, NamingRuntimeCredentialsStore>();
