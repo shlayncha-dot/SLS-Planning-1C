@@ -91,8 +91,17 @@ public sealed class FileIndexController : ControllerBase
 
         if (match is null)
         {
-            _logger.LogWarning("Drawing preview not found in index for detail '{DetailName}'.", detailName);
-            return NotFound($"Чертеж не найден в индексе для детали '{detailName}'.");
+            var candidatesWithoutIndex = GetCandidatesWithoutIndex(detailName, linkServer, _fileIndexStore.GetSnapshotRootPaths()).ToList();
+            var candidatesText = candidatesWithoutIndex.Count > 0
+                ? string.Join("; ", candidatesWithoutIndex)
+                : "нет доступных путей";
+
+            _logger.LogWarning(
+                "Drawing preview not found in index for detail '{DetailName}'. Candidates without index: {Candidates}.",
+                detailName,
+                candidatesText);
+
+            return NotFound($"Чертеж не найден в индексе для детали '{detailName}'. Проверенные пути: {candidatesText}");
         }
 
         var candidates = GetPathCandidates(match, linkServer).ToList();
@@ -193,6 +202,35 @@ public sealed class FileIndexController : ControllerBase
         if (!string.IsNullOrWhiteSpace(linkServer))
         {
             yield return Path.Combine(linkServer, normalizedRelativePath);
+        }
+    }
+
+    private static IEnumerable<string> GetCandidatesWithoutIndex(string detailName, string? linkServer, IReadOnlyList<string> snapshotRootPaths)
+    {
+        var normalizedName = detailName.Trim();
+        var fallbackName = NormalizeType1DetailName(normalizedName);
+        var fileNames = new[]
+        {
+            $"{normalizedName}.pdf",
+            $"{fallbackName}.pdf"
+        }
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+        if (!string.IsNullOrWhiteSpace(linkServer))
+        {
+            foreach (var fileName in fileNames)
+            {
+                yield return Path.Combine(linkServer, fileName);
+            }
+        }
+
+        foreach (var rootPath in snapshotRootPaths)
+        {
+            foreach (var fileName in fileNames)
+            {
+                yield return Path.Combine(rootPath, fileName);
+            }
         }
     }
 

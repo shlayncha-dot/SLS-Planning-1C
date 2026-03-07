@@ -138,11 +138,12 @@ const KDCheckView = ({
     }, []);
 
     const handleRowDoubleClick = React.useCallback(async (row) => {
-        if (!namingTargetColumnKey) {
-            return;
-        }
+        const detailName = String(
+            row?.[designationTargetColumnKey]
+            ?? row?.[namingTargetColumnKey]
+            ?? ''
+        ).trim();
 
-        const detailName = String(row?.[namingTargetColumnKey] ?? '').trim();
         if (!detailName) {
             return;
         }
@@ -156,7 +157,7 @@ const KDCheckView = ({
 
             alert(message);
         }
-    }, [namingTargetColumnKey, onRequestDrawingPreview]);
+    }, [designationTargetColumnKey, namingTargetColumnKey, onRequestDrawingPreview]);
 
     React.useEffect(() => {
         const element = tableWrapRef.current;
