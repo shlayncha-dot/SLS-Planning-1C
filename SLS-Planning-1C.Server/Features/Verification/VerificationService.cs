@@ -19,11 +19,16 @@ public sealed class VerificationService : IVerificationService
 
     private readonly IFileIndexStore _fileIndexStore;
     private readonly IVerificationSettingsStore _verificationSettingsStore;
+    private readonly IVerificationResultCacheStore _verificationResultCacheStore;
 
-    public VerificationService(IFileIndexStore fileIndexStore, IVerificationSettingsStore verificationSettingsStore)
+    public VerificationService(
+        IFileIndexStore fileIndexStore,
+        IVerificationSettingsStore verificationSettingsStore,
+        IVerificationResultCacheStore verificationResultCacheStore)
     {
         _fileIndexStore = fileIndexStore;
         _verificationSettingsStore = verificationSettingsStore;
+        _verificationResultCacheStore = verificationResultCacheStore;
     }
 
     public VerificationResponse Verify(VerificationRequest request)
@@ -37,8 +42,13 @@ public sealed class VerificationService : IVerificationService
 
         var linkServer = _verificationSettingsStore.Get().SpecificationSettings.LinkServer;
 
-        var dxfIssues = VerifyDxf(request.Rows, designationColumn, typeColumn, dxfFiles, linkServer);
-        var pdfIssues = VerifyPdf(request.Rows, designationColumn, typeColumn, request.TypeRules, pdfFiles, linkServer);
+        var dxfResolved = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        var pdfResolved = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+        var dxfIssues = VerifyDxf(request.Rows, designationColumn, typeColumn, dxfFiles, linkServer, dxfResolved);
+        var pdfIssues = VerifyPdf(request.Rows, designationColumn, typeColumn, request.TypeRules, pdfFiles, linkServer, pdfResolved);
+
+        UpdateCache(request.Rows, designationColumn, dxfResolved, pdfResolved);
 
         return new VerificationResponse
         {
@@ -63,7 +73,8 @@ public sealed class VerificationService : IVerificationService
         string? designationColumn,
         string? typeColumn,
         IReadOnlyList<IndexedFileDto> dxfFiles,
-        string? linkServer)
+        string? linkServer,
+        IDictionary<string, IReadOnlyList<string>> resolvedPaths)
     {
         var issues = new List<VerificationIssueDto>();
         if (designationColumn is null || typeColumn is null)
@@ -84,6 +95,7 @@ public sealed class VerificationService : IVerificationService
             }
 
             var found = FindExactByFileName(detailName, dxfFiles);
+            resolvedPaths[detailName] = BuildIssuePaths(found, linkServer);
             AddIssues(row.RowId, detailName, found, issues, linkServer);
         }
 
@@ -107,7 +119,8 @@ public sealed class VerificationService : IVerificationService
         string? typeColumn,
         IReadOnlyList<VerificationTypeRuleDto> typeRules,
         IReadOnlyList<IndexedFileDto> pdfFiles,
-        string? linkServer)
+        string? linkServer,
+        IDictionary<string, IReadOnlyList<string>> resolvedPaths)
     {
         var issues = new List<VerificationIssueDto>();
         if (designationColumn is null || typeColumn is null)
@@ -144,10 +157,39 @@ public sealed class VerificationService : IVerificationService
                 _ => ApplyType1Algorithm(detailName, pdfFiles)
             };
 
+            resolvedPaths[detailName] = BuildIssuePaths(found, linkServer);
             AddIssues(row.RowId, detailName, found, issues, linkServer);
         }
 
         return issues;
+    }
+
+
+    private void UpdateCache(
+        IReadOnlyList<VerifyRowDto> rows,
+        string? designationColumn,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> dxfResolved,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> pdfResolved)
+    {
+        if (designationColumn is null)
+        {
+            _verificationResultCacheStore.ReplaceAll([]);
+            return;
+        }
+
+        var entries = rows
+            .Select(row => row.Values.TryGetValue(designationColumn, out var detailName) ? detailName?.Trim() : null)
+            .Where(detailName => !string.IsNullOrWhiteSpace(detailName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(detailName => new VerifiedDetailCacheEntry
+            {
+                DetailName = detailName!,
+                DxfPaths = dxfResolved.TryGetValue(detailName!, out var dxfPaths) ? dxfPaths : [],
+                PdfPaths = pdfResolved.TryGetValue(detailName!, out var pdfPaths) ? pdfPaths : []
+            })
+            .ToList();
+
+        _verificationResultCacheStore.ReplaceAll(entries);
     }
 
     private static void AddIssues(string rowId, string detailName, IReadOnlyList<IndexedFileDto> found, ICollection<VerificationIssueDto> issues, string? linkServer)
