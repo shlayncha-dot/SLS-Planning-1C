@@ -98,7 +98,8 @@ const KDCheckView = ({
     generalCheckReport,
     onCloseGeneralCheckReport,
     designationTargetColumnKey,
-    onRequestDrawingPreview
+    onRequestDrawingPreview,
+    onOpenTestPdf
 }) => {
     const [openFilterKey, setOpenFilterKey] = React.useState(null);
     const [pendingFilters, setPendingFilters] = React.useState({});
@@ -418,6 +419,10 @@ const KDCheckView = ({
                 <button type="button" className="main-field-btn" onClick={onRunGeneralCheck} disabled={generalCheckInProgress || verificationInProgress || namingCheckInProgress}>
                     <span className="main-field-btn__icon" aria-hidden="true">🧩</span>
                     <span className="main-field-btn__label">{generalCheckInProgress ? 'Проверка...' : 'Общая проверка КД'}</span>
+                </button>
+                <button type="button" className="main-field-btn" onClick={onOpenTestPdf}>
+                    <span className="main-field-btn__icon" aria-hidden="true">📄</span>
+                    <span className="main-field-btn__label">ТЕСТ PDF</span>
                 </button>
                 <label className="kd-search-control">
                     <span>🔎 Поиск</span>

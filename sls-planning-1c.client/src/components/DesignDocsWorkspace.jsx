@@ -7,6 +7,7 @@ import { fileIndexApi, specificationUploadApi, verificationApi } from '../config
 import { extractRowsForNamingCheck } from '../services/namingCheckService';
 
 const sampleSpecs = [];
+const TEST_PDF_SOURCE_URL = 'file://192.168.1.193/PilotGroup/_St/Indoor/StDi.HxL.00.000_Dveri/StDi.HxL.01.001.pdf';
 
 const defaultTableColumns = [
     { key: 'code', label: 'Код детали' },
@@ -1148,6 +1149,19 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
         setIsPreviewDialogOpen(true);
     }, [appendPreviewLog]);
 
+    const handleOpenTestPdf = useCallback(() => {
+        const normalizedPreviewUrl = normalizePreviewUrlForBrowser(TEST_PDF_SOURCE_URL);
+
+        setPreviewLogs([
+            formatPreviewLogLine('Тестовый запуск превью PDF из хардкод-ссылки.'),
+            formatPreviewLogLine(`Исходный путь: ${TEST_PDF_SOURCE_URL}`),
+            formatPreviewLogLine(`Нормализованный путь: ${normalizedPreviewUrl || '<пусто>'}`)
+        ]);
+        setPreviewDetailName('ТЕСТ PDF');
+        setPreviewDocumentUrl(normalizedPreviewUrl);
+        setIsPreviewDialogOpen(true);
+    }, []);
+
     const handlePreviewFrameLoad = useCallback(() => {
         if (!previewDocumentUrl) {
             return;
@@ -1246,6 +1260,7 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
                     onCloseGeneralCheckReport={() => setGeneralCheckReport(null)}
                     designationTargetColumnKey={designationTargetColumnKey}
                     onRequestDrawingPreview={handleDrawingPreviewRequest}
+                    onOpenTestPdf={handleOpenTestPdf}
                 />
             </div>
 
