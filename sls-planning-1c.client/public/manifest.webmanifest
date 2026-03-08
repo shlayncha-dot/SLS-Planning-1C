@@ -1,5 +1,5 @@
 {
-  "name": "SLS Planning USER UI",
+  "name": "SLS Planning V1 USER UI",
   "short_name": "SLS USER",
   "display": "standalone",
   "start_url": "/user-screen",

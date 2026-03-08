@@ -1067,36 +1067,39 @@ const DesignDocsWorkspace = ({ activeSubItem, namingLogin }) => {
             return;
         }
 
-        const query = new URLSearchParams({ detailName: normalizedDetailName });
-        const response = await fetch(`${fileIndexApi.drawingPreview}?${query.toString()}`);
+        const previewWindow = window.open('', '_blank', 'noopener,noreferrer');
 
-        if (!response.ok) {
-            const errorText = (await response.text()).trim();
-            const pathMatch = errorText.match(/Проверенный путь:\s*(.+?)\.\s*Причина:/i);
-            const fallbackPath = pathMatch?.[1]?.trim();
+        if (!previewWindow) {
+            throw new Error('Браузер заблокировал открытие новой вкладки. Разрешите pop-up для сайта.');
+        }
 
-            if (fallbackPath) {
-                const opened = window.open(fallbackPath, '_blank', 'noopener,noreferrer');
+        try {
+            const query = new URLSearchParams({ detailName: normalizedDetailName });
+            const response = await fetch(`${fileIndexApi.drawingPreview}?${query.toString()}`);
 
-                if (!opened) {
-                    throw new Error('Браузер заблокировал открытие новой вкладки. Разрешите pop-up для сайта.');
+            if (!response.ok) {
+                const errorText = (await response.text()).trim();
+                const pathMatch = errorText.match(/Проверенный путь:\s*(.+?)\.\s*Причина:/i);
+                const fallbackPath = pathMatch?.[1]?.trim();
+
+                if (fallbackPath) {
+                    previewWindow.location.replace(fallbackPath);
+                    return;
                 }
 
-                return;
+                throw new Error(errorText || 'Чертеж не найден');
             }
 
-            throw new Error(errorText || 'Чертеж не найден');
-        }
+            const filePath = response.headers.get('X-Drawing-Path') || '';
 
-        const filePath = response.headers.get('X-Drawing-Path') || '';
+            if (!filePath) {
+                throw new Error(`Не удалось получить путь к чертежу для детали «${normalizedDetailName}».`);
+            }
 
-        if (!filePath) {
-            throw new Error(`Не удалось получить путь к чертежу для детали «${normalizedDetailName}».`);
-        }
-
-        const opened = window.open(filePath, '_blank', 'noopener,noreferrer');
-        if (!opened) {
-            throw new Error('Браузер заблокировал открытие новой вкладки. Разрешите pop-up для сайта.');
+            previewWindow.location.replace(filePath);
+        } catch (error) {
+            previewWindow.close();
+            throw error;
         }
     }, []);
 
